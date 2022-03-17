@@ -38,6 +38,13 @@
         dest: "{{ service_path }}/env.template.j2"
         owner: "{{ username }}"
         mode: "0644"
+  
+    - name: Copy run_mealie.py template
+      ansible.builtin.copy:
+        src: run_mealie.py.template.j2
+        dest: "{{ service_path }}/run_mealie.py.template.j2"
+        owner: "{{ username }}"
+        mode: "0644"
 
     - name: Copy mealie systemd config template
       ansible.builtin.copy:
