@@ -64,6 +64,8 @@
         chdir: "{{ site_path }}/frontend"
       become: true
       become_user: "{{ username }}"
+      environment:
+        NODE_OPTIONS: "--openssl-legacy-provider"
   
     - name: Create .env file
       template:
