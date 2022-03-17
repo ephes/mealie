@@ -5,6 +5,9 @@
 poetry install
 cd frontend && npm install
 
+## set production to false
+echo "PRODUCTION=false" > .env
+
 ## migrate
 python mealie/db/init_db.py
 
