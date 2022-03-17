@@ -1,4 +1,4 @@
-- hosts: staging
+- hosts: localhost
   vars:
     - username: mealie
     - home_path: "/home/{{ username }}"
