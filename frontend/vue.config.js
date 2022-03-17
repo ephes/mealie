@@ -4,7 +4,7 @@ const PreloadWebpackPlugin = require("preload-webpack-plugin");
 
 module.exports = {
   transpileDependencies: ["vuetify"],
-  publicPath: process.env.NODE_ENV === "production" ? "/" : "/",
+  publicPath: process.env.NODE_ENV === "production" ? "/vue/" : "/",
   outputDir: process.env.NODE_ENV === "production" ? "./dist" : "../mealie/web",
   devServer: {
     proxy: {

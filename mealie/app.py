@@ -58,12 +58,12 @@ def api_routers():
 
 
 api_routers()
-app.mount("/static", StaticFiles(directory="frontend/dist"), name="static")
+app.mount("/vue", StaticFiles(directory="frontend/dist"), name="vue")
 
 
 @app.get("/")
 async def redirect_typer():
-    return RedirectResponse("/static/index.html")
+    return RedirectResponse("/vue/index.html")
 
 
 @app.on_event("startup")
