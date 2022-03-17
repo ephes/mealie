@@ -1,0 +1,12 @@
+# from checkout to running
+
+
+## install dependencies 
+poetry install
+cd frontend && npm install
+
+## migrate
+python mealie/db/init_db.py
+
+## start 
+honcho start
