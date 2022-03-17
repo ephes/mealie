@@ -1,0 +1,4 @@
+#!/usr/bin/bash
+cd {{ service_path }}
+ANSIBLE_STDOUT_CALLBACK=json_cb {{ ansible_playbook }} playbook.yml --connection=local
+cd -

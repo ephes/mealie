@@ -1,0 +1,90 @@
+- hosts: staging
+  vars:
+    - username: deploy
+    - home_path: "/home/{{ username }}"
+    - site_path: "{{ home_path }}/site"
+    - services_path: "{{ site_path }}/services"
+    - service_path: "{{ services_path }}/mealie"
+    - ansible_python: "{{ home_path }}/ansible_venv/bin/python"
+    - ansible_playbook: "{{ home_path }}/ansible_venv/bin/ansible-playbook"
+
+  tasks:
+    - name: "Include secret vars"
+      include_vars: secrets.yml
+
+    - name: Create mealie service directory
+      file:
+        path: "{{ service_path }}"
+        state: directory
+        owner: "{{ username }}"
+
+    - name: Create .vault_password file
+      template:
+        src: vault_password.template.j2
+        dest: "{{ service_path }}/.vault_password"
+        mode: "0400"
+        owner: "{{ username }}"
+
+    - name: Copy secrets
+      ansible.builtin.copy:
+        src: secrets.yml
+        dest: "{{ service_path }}/secrets.yml"
+        owner: "{{ username }}"
+        mode: "0400"
+
+    - name: Copy env template
+      ansible.builtin.copy:
+        src: env.template.j2
+        dest: "{{ service_path }}/env.template.j2"
+        owner: "{{ username }}"
+        mode: "0644"
+
+    - name: Copy mealie systemd config template
+      ansible.builtin.copy:
+        src: systemd.service.j2
+        dest: "{{ service_path }}/systemd.service.j2"
+        owner: "{{ username }}"
+        mode: "0644"
+
+    - name: Copy mealie traefik config template
+      ansible.builtin.copy:
+        src: traefik.template.j2
+        dest: "{{ service_path }}/traefik.template.j2"
+        owner: "{{ username }}"
+        mode: "0644"
+
+    - name: Copy mealie service deploy playbook
+      ansible.builtin.copy:
+        src: playbook.yml
+        dest: "{{ service_path }}/playbook.yml"
+        owner: "{{ username }}"
+        mode: "0644"
+
+    - name: Copy mealie service deploy config
+      ansible.builtin.copy:
+        src: config.json
+        dest: "{{ service_path }}/config.json"
+        owner: "{{ username }}"
+        mode: "0400"
+
+    - name: Copy inventory directory
+      ansible.builtin.copy:
+        src: inventory
+        dest: "{{ service_path }}"
+        owner: "{{ username }}"
+
+    - name: Create mealie service deploy script
+      template:
+        src: deploy.sh.template.j2
+        dest: "{{ service_path }}/deploy.sh"
+        owner: "{{ username }}"
+        mode: "0500"
+
+    - name: Create sudoers file for deploy scripts
+      template:
+        src: sudoers.template.j2
+        dest: /etc/sudoers.d/mealie_as_root
+        mode: "0440"
+
+    - name: Install psycopg2 for ansible python
+      shell: "{{ ansible_python }} -m pip install psycopg2"

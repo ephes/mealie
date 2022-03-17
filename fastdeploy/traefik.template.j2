@@ -1,0 +1,37 @@
+http:
+  routers:
+    mealie-router:
+      rule: "Host(`mealie.staging.django-cast.com`)"
+
+      entryPoints:
+        - web
+      middlewares:
+        - redirect
+        - csrf
+      service: mealie
+
+    mealie-secure-router:
+      rule: "Host(`mealie.staging.django-cast.com`)"
+
+      entryPoints:
+        - web-secure
+      middlewares:
+        - csrf
+      service: mealie
+      tls:
+        certResolver: letsencrypt
+
+  middlewares:
+    redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+    csrf:
+      headers:
+        hostsProxyHeaders: ["X-CSRFToken"]
+
+  services:
+    mealie:
+      loadBalancer:
+        servers:
+          - url: http://localhost:{{ port }}

@@ -155,3 +155,6 @@ mealie/services/scraper/ingredient_nlp/model.crfmodel
 frontend/.nuxt/**
 frontend/static/sw.js
 dev/code-generation/generated/*
+
+# vault
+.vault_password
