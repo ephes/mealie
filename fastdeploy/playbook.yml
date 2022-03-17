@@ -109,6 +109,13 @@
         mode: "0755"
       become: true
       become_user: "{{ username }}"
+  
+    - name: Run initdb script
+      shell: "{{ python_bin_path }} mealie/db/init_db.py"
+      args:
+        chdir: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
 
     - name: Create a unit file for uvicorn systemd service
       template:
