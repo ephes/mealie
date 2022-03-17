@@ -1,4 +1,4 @@
-- hosts: localhost
+- hosts: staging
   vars:
     - username: mealie
     - home_path: "/home/{{ username }}"
@@ -9,11 +9,17 @@
     - ansible_venv_bin: "{{ deploy_home }}/ansible_venv/bin"
     - ansible_python: "{{ ansible_venv_bin }}/python"
     - default_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-    - port: 8003
+    - port: 11000
 
   tasks:
     - name: "Include secret vars"
       include_vars: secrets.yml
+
+    - name: Install required build packages
+      apt:
+        name: ["libxml2-dev", "libxslt-dev", "libldap2-dev", "libsasl2-dev"]
+      environment:
+        PATH: "{{ default_path }}"
 
     - name: Add the unix user with a bash shell
       user:
@@ -61,7 +67,7 @@
       become_user: "{{ username }}"
 
     - name: Install poetry dependencies
-      shell: "{{ home_path }}/.poetry/bin/poetry install"
+      shell: "{{ home_path }}/.poetry/bin/poetry install -E pgsql"
       args:
         chdir: "{{ site_path }}"
       become: true
@@ -75,11 +81,11 @@
       set_fact:
         python_bin_path={{ find_python.stdout }}
     
-    - name: Create mealie.py start file
+    - name: Create run_mealie.py start file
       template:
-        src: mealie.py.template.j2
-        dest: "{{ site_path }}/mealie.py"
-        mode: "0644"
+        src: run_mealie.py.template.j2
+        dest: "{{ site_path }}/run_mealie.py"
+        mode: "0755"
       become: true
       become_user: "{{ username }}"
 
