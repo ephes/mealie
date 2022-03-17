@@ -21,7 +21,7 @@ PRODUCTION = os.getenv("PRODUCTION", "True").lower() in ["true", "1"]
 def determine_data_dir(production: bool) -> Path:
     global CWD
     if production:
-        return BASE_DIR / "data"
+        return BASE_DIR.parent / "data"
 
     return CWD.parent.parent.joinpath("dev", "data")
 

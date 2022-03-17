@@ -75,6 +75,11 @@
       become: true
       become_user: "{{ username }}"
 
+    - name: Make sure data directory exists
+      file:
+        path: "{{ home_path }}/data"
+        state: directory
+
     - name: Install poetry
       shell: curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3.10 -
       args:
