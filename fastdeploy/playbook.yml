@@ -50,6 +50,20 @@
         dest: "{{ site_path }}"
       become: true
       become_user: "{{ username }}"
+
+    - name: Install mealie frontend vue app dependencies
+      shell: npm install
+      args:
+        chdir: "{{ site_path }}/frontend"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Build mealie frontend vue app
+      shell: npm run build
+      args:
+        chdir: "{{ site_path }}/frontend"
+      become: true
+      become_user: "{{ username }}"
   
     - name: Create .env file
       template:

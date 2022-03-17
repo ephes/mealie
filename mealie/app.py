@@ -1,5 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 
 from mealie.core.config import APP_VERSION, settings
 from mealie.core.root_logger import get_logger
@@ -56,6 +58,12 @@ def api_routers():
 
 
 api_routers()
+app.mount("/static", StaticFiles(directory="frontend/dist"), name="static")
+
+
+@app.get("/")
+async def redirect_typer():
+    return RedirectResponse("/static/index.html")
 
 
 @app.on_event("startup")
