@@ -158,3 +158,6 @@ dev/code-generation/generated/*
 
 # vault
 .vault_password
+
+# postgres
+dev/data/postgres
