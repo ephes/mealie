@@ -1,0 +1,44 @@
+# requirements
+# installs mealie as a package (needed for db/initdb.py to be able to import mealie)
+# installs dev dependencies + psycopg2
+
+poetry install -E pgsql
+
+# initialize the database in dev/data
+mkdir dev/data/postgres
+pg_ctl initdb -D dev/data/postgres/
+
+# start the database server
+postgres -D dev/data/postgres/
+
+# re/create database and db user
+dropdb mealie
+dropuser mealie
+createdb mealie
+createuser mealie
+
+# create .env file with content
+# dunno why all these variables are needed, using one url like this
+# would be much simpler: DB_URL=postgresql:///mealie
+PRODUCTION=false
+DB_ENGINE=postgres
+POSTGRES_USER=mealie
+POSTGRES_PASSWORD=mealie
+POSTGRES_SERVER=localhost
+POSTGRES_DB=mealie
+
+# initial database migration
+python mealie/db/init_db.py
+
+# use honcho to start db + backend + frontend
+
+## create Procfile containing following lines
+postgres: postgres -D dev/data/postgres/  # initdb dev/data/postgres/
+uvicorn: python mealie/app.py
+vue: cd frontend && npm run serve
+
+## install honcho
+pipx install honcho
+
+## run your application
+honcho start
