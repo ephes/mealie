@@ -1,0 +1,169 @@
+- hosts: staging
+  vars:
+    - username: mealie
+    - home_path: "/home/{{ username }}"
+    - deploy_home: /home/deploy
+    - site_path: "{{ home_path }}/site"
+    - service_path: "{{ deploy_home }}/site/services/mealie"
+    - global_python_bin: /usr/local/bin/python3.10
+    - ansible_venv_bin: "{{ deploy_home }}/ansible_venv/bin"
+    - ansible_python: "{{ ansible_venv_bin }}/python"
+    - default_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    - port: 9000
+    - nuxt_port: 3000
+
+  tasks:
+    - name: "Include secret vars"
+      include_vars: secrets.yml
+
+    - name: Install required build packages
+      apt:
+        name: ["libxml2-dev", "libxslt-dev", "libldap2-dev", "libsasl2-dev"]
+      environment:
+        PATH: "{{ default_path }}"
+
+    - name: Add yarn signing key - do not download if present
+      apt_key:
+        id: 72ECF46A56B4AD39C907BBB71646B01B86E50310
+        url: https://dl.yarnpkg.com/debian/pubkey.gpg
+        state: present
+
+    - name: Add yarn repository
+      apt_repository:
+        repo: deb https://dl.yarnpkg.com/debian/ stable main
+        state: present
+
+    - name: Install required build packages
+      apt:
+        name: ["libxml2-dev", "libxslt-dev", "libldap2-dev", "libsasl2-dev"]
+      environment:
+        PATH: "{{ default_path }}"
+
+    - name: Install required frontend packages
+      apt:
+        name: ["yarn"]
+
+    - name: Add the unix user with a bash shell
+      user:
+        name: "{{ username }}"
+        shell: /bin/bash
+
+    - name: Create a new postgres database
+      # install role first:
+      # ansible-galaxy collection install community.postgresql
+      community.general.postgresql_db:
+        name: "{{ postgres_database }}"
+        state: present
+      become: true
+      become_user: postgres
+
+    - name: Create a new postgres user
+      community.general.postgresql_user:
+        db: "{{ postgres_database }}"
+        name: "{{ postgres_user }}"
+        password: "{{ postgres_password }}"
+        state: present
+      become: true
+      become_user: postgres
+
+    - name: Git checkout repository
+      git:
+        repo: "https://github.com/ephes/mealie"
+        dest: "{{ site_path }}"
+        version: mealie-next
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Install mealie frontend vue app dependencies
+      shell: yarn install
+      args:
+        chdir: "{{ site_path }}/frontend"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Build mealie frontend vue app
+      shell: yarn build
+      args:
+        chdir: "{{ site_path }}/frontend"
+      become: true
+      become_user: "{{ username }}"
+      environment:
+        NODE_OPTIONS: "--openssl-legacy-provider"
+
+    - name: Create .env file
+      template:
+        src: env.template.j2
+        dest: "{{ site_path }}/.env"
+        mode: "0600"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Make sure data directory exists
+      file:
+        path: "{{ site_path }}/data"
+        state: directory
+        owner: "{{ username }}"
+
+    - name: Install poetry
+      shell: curl -sSL https://install.python-poetry.org | python3.10 -
+      args:
+        warn: no
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Install poetry dependencies
+      shell: "{{ home_path }}/.poetry/bin/poetry install -E pgsql"
+      args:
+        chdir: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Find path to poetry venv interpreter
+      shell: "find {{ home_path }}/.cache/pypoetry/virtualenvs -name python | grep bin"
+      register: find_python
+
+    - name: Set python bin path
+      set_fact: python_bin_path={{ find_python.stdout }}
+
+    - name: Create run_mealie.py start file
+      template:
+        src: run_mealie.py.template.j2
+        dest: "{{ site_path }}/run_mealie.py"
+        mode: "0755"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Run initdb script
+      shell: "{{ python_bin_path }} mealie/db/init_db.py"
+      args:
+        chdir: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Create a unit file for uvicorn systemd service
+      template:
+        src: systemd.service.j2
+        dest: "/etc/systemd/system/{{ username }}.service"
+        mode: "0644"
+
+    - name: Create a unit file for nuxt systemd service
+      template:
+        src: systemd.nuxt.service.j2
+        dest: "/etc/systemd/system/{{ username }}.nuxt.service"
+        mode: "0644"
+
+    - name: Make sure mealie uvicorn service is running
+      systemd:
+        state: restarted
+        name: "{{ username }}"
+
+    - name: Make sure mealie nuxt service is running
+      systemd:
+        state: restarted
+        name: "{{ username }}.nuxt"
+
+    - name: Create a config file for traefik loadbalancer
+      template:
+        src: traefik.template.j2
+        dest: "/etc/traefik/dynamic/{{ username }}.traefik.yml"
+        mode: "0644"
