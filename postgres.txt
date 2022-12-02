@@ -49,3 +49,7 @@ pipx install honcho
 
 ## run your application
 honcho start
+
+# use the default login to login, wtf?
+username: changeme@email.com
+password. MyPassword
