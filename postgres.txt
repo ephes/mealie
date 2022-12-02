@@ -53,3 +53,11 @@ honcho start
 # use the default login to login, wtf?
 username: changeme@email.com
 password. MyPassword
+
+# delete recipes
+delete from recipe_instructions;
+delete from recipe_nutrition;
+delete from recipes_ingredients;
+delete from recipe_settings;
+delete from recipe_timeline_events;
+delete from recipes;
