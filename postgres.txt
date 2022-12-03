@@ -55,11 +55,11 @@ username: changeme@email.com
 password. MyPassword
 
 # delete recipes
+delete from api_extras;
+delete from notes;
 delete from recipe_instructions;
 delete from recipe_nutrition;
 delete from recipes_ingredients;
 delete from recipe_settings;
 delete from recipe_timeline_events;
 delete from recipes;
-delete from api_extras;
-delete from notes;
