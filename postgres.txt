@@ -61,3 +61,5 @@ delete from recipes_ingredients;
 delete from recipe_settings;
 delete from recipe_timeline_events;
 delete from recipes;
+delete from api_extras;
+delete from notes;
