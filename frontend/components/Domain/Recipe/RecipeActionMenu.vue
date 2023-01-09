@@ -9,7 +9,7 @@
   >
     <BaseDialog
       v-model="deleteDialog"
-      :title="$t('recipe.delete-recipe')"
+      :title="$tc('recipe.delete-recipe')"
       color="error"
       :icon="$globals.icons.alertCircle"
       @confirm="emitDelete()"
@@ -22,6 +22,7 @@
     <v-spacer></v-spacer>
     <div v-if="!open" class="custom-btn-group ma-1">
       <RecipeFavoriteBadge v-if="loggedIn" class="mx-1" color="info" button-style :slug="recipe.slug" show-always />
+      <RecipeTimelineBadge button-style :slug="recipe.slug" :recipe-name="recipe.name"  />
       <v-tooltip v-if="!locked" bottom color="info">
         <template #activator="{ on, attrs }">
           <v-btn fab small class="mx-1" color="info" v-bind="attrs" v-on="on" @click="$emit('edit', true)">
@@ -50,10 +51,12 @@
         color="info"
         :card-menu="false"
         :recipe-id="recipe.id"
+        :recipe-scale="recipeScale"
         :use-items="{
           delete: false,
           edit: false,
           download: true,
+          duplicate: true,
           mealplanner: true,
           shoppingList: true,
           print: true,
@@ -63,13 +66,12 @@
         @print="$emit('print')"
       />
     </div>
-    <div v-if="open" class="custom-btn-group mb-">
+    <div v-if="open" class="custom-btn-group gapped">
       <v-btn
         v-for="(btn, index) in editorButtons"
         :key="index"
         :fab="$vuetify.breakpoint.xs"
         :small="$vuetify.breakpoint.xs"
-        class="mx-1"
         :color="btn.color"
         @click="emitHandler(btn.event)"
       >
@@ -84,6 +86,7 @@
 import { defineComponent, ref, useContext } from "@nuxtjs/composition-api";
 import RecipeContextMenu from "./RecipeContextMenu.vue";
 import RecipeFavoriteBadge from "./RecipeFavoriteBadge.vue";
+import RecipeTimelineBadge from "./RecipeTimelineBadge.vue";
 import { Recipe } from "~/lib/api/types/recipe";
 
 const SAVE_EVENT = "save";
@@ -93,7 +96,7 @@ const JSON_EVENT = "json";
 const OCR_EVENT = "ocr";
 
 export default defineComponent({
-  components: { RecipeContextMenu, RecipeFavoriteBadge },
+  components: { RecipeContextMenu, RecipeFavoriteBadge, RecipeTimelineBadge },
   props: {
     recipe: {
       required: true,
@@ -102,6 +105,10 @@ export default defineComponent({
     slug: {
       required: true,
       type: String,
+    },
+    recipeScale: {
+      type: Number,
+      default: 1,
     },
     open: {
       required: true,
@@ -202,6 +209,10 @@ export default defineComponent({
 .custom-btn-group {
   flex: 0, 1, auto;
   display: inline-flex;
+}
+
+.gapped {
+  gap: 0.25rem;
 }
 
 .vertical {

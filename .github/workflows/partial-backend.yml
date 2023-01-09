@@ -30,10 +30,10 @@ jobs:
     # Steps
     steps:
       - name: Check out repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
@@ -66,12 +66,11 @@ jobs:
           poetry add "psycopg2-binary==2.8.6"
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true' || steps.cache-validate.outputs.cache-hit-success != 'true'
 
-      - name: Formatting (Black & isort)
+      - name: Formatting (Black)
         run: |
           poetry run black . --check
-          poetry run isort . --check-only
 
-      - name: Lint (Flake8)
+      - name: Lint (Ruff)
         run: |
           make backend-lint
 
