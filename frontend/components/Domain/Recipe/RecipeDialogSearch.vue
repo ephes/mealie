@@ -5,7 +5,7 @@
       <v-app-bar sticky dark color="primary lighten-1" :rounded="!$vuetify.breakpoint.xs">
         <v-text-field
           id="arrow-search"
-          v-model="search"
+          v-model="search.query.value"
           autofocus
           solo
           flat
@@ -31,11 +31,11 @@
           <div class="mr-auto">
             {{ $t("search.results") }}
           </div>
-          <router-link to="/search?advanced=true"> {{ $t("search.advanced-search") }} </router-link>
+          <router-link to="/"> {{ $t("search.advanced-search") }} </router-link>
         </v-card-actions>
 
         <RecipeCardMobile
-          v-for="(recipe, index) in results.slice(0, 10)"
+          v-for="(recipe, index) in search.data.value"
           :key="index"
           :tabindex="index"
           class="ma-1 arrow-nav"
@@ -56,8 +56,9 @@
 <script lang="ts">
 import { defineComponent, toRefs, reactive, ref, watch, useRoute } from "@nuxtjs/composition-api";
 import RecipeCardMobile from "./RecipeCardMobile.vue";
-import { useRecipes, allRecipes, useRecipeSearch } from "~/composables/recipes";
 import { RecipeSummary } from "~/lib/api/types/recipe";
+import { useUserApi } from "~/composables/api";
+import { useRecipeSearch } from "~/composables/recipes/use-recipe-search";
 const SELECTED_EVENT = "selected";
 export default defineComponent({
   components: {
@@ -65,12 +66,9 @@ export default defineComponent({
   },
 
   setup(_, context) {
-    const { refreshRecipes } = useRecipes(true, false);
-
     const state = reactive({
       loading: false,
       selectedIndex: -1,
-      searchResults: [],
     });
 
     // ===========================================================================
@@ -78,14 +76,11 @@ export default defineComponent({
     const dialog = ref(false);
 
     // Reset or Grab Recipes on Change
-    watch(dialog, async (val) => {
+    watch(dialog, (val) => {
       if (!val) {
-        search.value = "";
+        search.query.value = "";
         state.selectedIndex = -1;
-      } else if (allRecipes.value && allRecipes.value.length <= 0) {
-        state.loading = true;
-        await refreshRecipes();
-        state.loading = false;
+        search.data.value = [];
       }
     });
 
@@ -145,9 +140,9 @@ export default defineComponent({
 
     // ===========================================================================
     // Basic Search
+    const api = useUserApi();
+    const search = useRecipeSearch(api);
 
-    const { search, results } = useRecipeSearch(allRecipes);
-    // ===========================================================================
     // Select Handler
 
     function handleSelect(recipe: RecipeSummary) {
@@ -155,13 +150,20 @@ export default defineComponent({
       context.emit(SELECTED_EVENT, recipe);
     }
 
-    return { allRecipes, refreshRecipes, ...toRefs(state), dialog, open, close, handleSelect, search, results };
+    return {
+      ...toRefs(state),
+      dialog,
+      open,
+      close,
+      handleSelect,
+      search,
+    };
   },
 });
 </script>
 
 <style>
 .scroll {
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 </style>

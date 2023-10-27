@@ -13,7 +13,7 @@
           <div v-if="user.id" class="d-flex justify-center mt-5">
             <RecipeLastMade
               v-model="recipe.lastMade"
-              :recipe-slug="recipe.slug"
+              :recipe="recipe"
               class="d-flex justify-center flex-wrap"
               :class="true ? undefined : 'force-bottom'"
             />
@@ -42,7 +42,6 @@
     </div>
     <v-divider></v-divider>
     <RecipeActionMenu
-      v-if="user.id"
       :recipe="recipe"
       :slug="recipe.slug"
       :recipe-scale="recipeScale"

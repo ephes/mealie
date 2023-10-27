@@ -39,6 +39,8 @@ admin_server_tasks = "/api/admin/server-tasks"
 """`/api/admin/server-tasks`"""
 admin_users = "/api/admin/users"
 """`/api/admin/users`"""
+admin_users_password_reset_token = "/api/admin/users/password-reset-token"
+"""`/api/admin/users/password-reset-token`"""
 admin_users_unlock = "/api/admin/users/unlock"
 """`/api/admin/users/unlock`"""
 app_about = "/api/app/about"
@@ -93,6 +95,8 @@ groups_self = "/api/groups/self"
 """`/api/groups/self`"""
 groups_shopping_items = "/api/groups/shopping/items"
 """`/api/groups/shopping/items`"""
+groups_shopping_items_create_bulk = "/api/groups/shopping/items/create-bulk"
+"""`/api/groups/shopping/items/create-bulk`"""
 groups_shopping_lists = "/api/groups/shopping/lists"
 """`/api/groups/shopping/lists`"""
 groups_statistics = "/api/groups/statistics"
@@ -157,6 +161,8 @@ recipes_summary_untagged = "/api/recipes/summary/untagged"
 """`/api/recipes/summary/untagged`"""
 recipes_test_scrape_url = "/api/recipes/test-scrape-url"
 """`/api/recipes/test-scrape-url`"""
+recipes_timeline_events = "/api/recipes/timeline/events"
+"""`/api/recipes/timeline/events`"""
 shared_recipes = "/api/shared/recipes"
 """`/api/shared/recipes`"""
 units = "/api/units"
@@ -219,9 +225,64 @@ def comments_item_id(item_id):
     return f"{prefix}/comments/{item_id}"
 
 
-def explore_recipes_group_id_recipe_slug(group_id, recipe_slug):
-    """`/api/explore/recipes/{group_id}/{recipe_slug}`"""
-    return f"{prefix}/explore/recipes/{group_id}/{recipe_slug}"
+def explore_cookbooks_group_slug(group_slug):
+    """`/api/explore/cookbooks/{group_slug}`"""
+    return f"{prefix}/explore/cookbooks/{group_slug}"
+
+
+def explore_cookbooks_group_slug_item_id(group_slug, item_id):
+    """`/api/explore/cookbooks/{group_slug}/{item_id}`"""
+    return f"{prefix}/explore/cookbooks/{group_slug}/{item_id}"
+
+
+def explore_foods_group_slug(group_slug):
+    """`/api/explore/foods/{group_slug}`"""
+    return f"{prefix}/explore/foods/{group_slug}"
+
+
+def explore_foods_group_slug_item_id(group_slug, item_id):
+    """`/api/explore/foods/{group_slug}/{item_id}`"""
+    return f"{prefix}/explore/foods/{group_slug}/{item_id}"
+
+
+def explore_organizers_group_slug_categories(group_slug):
+    """`/api/explore/organizers/{group_slug}/categories`"""
+    return f"{prefix}/explore/organizers/{group_slug}/categories"
+
+
+def explore_organizers_group_slug_categories_item_id(group_slug, item_id):
+    """`/api/explore/organizers/{group_slug}/categories/{item_id}`"""
+    return f"{prefix}/explore/organizers/{group_slug}/categories/{item_id}"
+
+
+def explore_organizers_group_slug_tags(group_slug):
+    """`/api/explore/organizers/{group_slug}/tags`"""
+    return f"{prefix}/explore/organizers/{group_slug}/tags"
+
+
+def explore_organizers_group_slug_tags_item_id(group_slug, item_id):
+    """`/api/explore/organizers/{group_slug}/tags/{item_id}`"""
+    return f"{prefix}/explore/organizers/{group_slug}/tags/{item_id}"
+
+
+def explore_organizers_group_slug_tools(group_slug):
+    """`/api/explore/organizers/{group_slug}/tools`"""
+    return f"{prefix}/explore/organizers/{group_slug}/tools"
+
+
+def explore_organizers_group_slug_tools_item_id(group_slug, item_id):
+    """`/api/explore/organizers/{group_slug}/tools/{item_id}`"""
+    return f"{prefix}/explore/organizers/{group_slug}/tools/{item_id}"
+
+
+def explore_recipes_group_slug(group_slug):
+    """`/api/explore/recipes/{group_slug}`"""
+    return f"{prefix}/explore/recipes/{group_slug}"
+
+
+def explore_recipes_group_slug_recipe_slug(group_slug, recipe_slug):
+    """`/api/explore/recipes/{group_slug}/{recipe_slug}`"""
+    return f"{prefix}/explore/recipes/{group_slug}/{recipe_slug}"
 
 
 def foods_item_id(item_id):
@@ -274,6 +335,11 @@ def groups_shopping_lists_item_id(item_id):
     return f"{prefix}/groups/shopping/lists/{item_id}"
 
 
+def groups_shopping_lists_item_id_label_settings(item_id):
+    """`/api/groups/shopping/lists/{item_id}/label-settings`"""
+    return f"{prefix}/groups/shopping/lists/{item_id}/label-settings"
+
+
 def groups_shopping_lists_item_id_recipe_recipe_id(item_id, recipe_id):
     """`/api/groups/shopping/lists/{item_id}/recipe/{recipe_id}`"""
     return f"{prefix}/groups/shopping/lists/{item_id}/recipe/{recipe_id}"
@@ -297,6 +363,11 @@ def media_recipes_recipe_id_assets_file_name(recipe_id, file_name):
 def media_recipes_recipe_id_images_file_name(recipe_id, file_name):
     """`/api/media/recipes/{recipe_id}/images/{file_name}`"""
     return f"{prefix}/media/recipes/{recipe_id}/images/{file_name}"
+
+
+def media_recipes_recipe_id_images_timeline_timeline_event_id_file_name(recipe_id, timeline_event_id, file_name):
+    """`/api/media/recipes/{recipe_id}/images/timeline/{timeline_event_id}/{file_name}`"""
+    return f"{prefix}/media/recipes/{recipe_id}/images/timeline/{timeline_event_id}/{file_name}"
 
 
 def media_users_user_id_file_name(user_id, file_name):
@@ -374,14 +445,19 @@ def recipes_slug_image(slug):
     return f"{prefix}/recipes/{slug}/image"
 
 
-def recipes_slug_timeline_events(slug):
-    """`/api/recipes/{slug}/timeline/events`"""
-    return f"{prefix}/recipes/{slug}/timeline/events"
+def recipes_slug_last_made(slug):
+    """`/api/recipes/{slug}/last-made`"""
+    return f"{prefix}/recipes/{slug}/last-made"
 
 
-def recipes_slug_timeline_events_item_id(slug, item_id):
-    """`/api/recipes/{slug}/timeline/events/{item_id}`"""
-    return f"{prefix}/recipes/{slug}/timeline/events/{item_id}"
+def recipes_timeline_events_item_id(item_id):
+    """`/api/recipes/timeline/events/{item_id}`"""
+    return f"{prefix}/recipes/timeline/events/{item_id}"
+
+
+def recipes_timeline_events_item_id_image(item_id):
+    """`/api/recipes/timeline/events/{item_id}/image`"""
+    return f"{prefix}/recipes/timeline/events/{item_id}/image"
 
 
 def shared_recipes_item_id(item_id):

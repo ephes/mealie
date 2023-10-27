@@ -6,8 +6,9 @@
       :icon="$globals.icons.tags"
       item-type="tags"
       @delete="actions.deleteOne"
+      @update="actions.updateOne"
     >
-      <template #title> Tags </template>
+      <template #title> {{ $t("tag.tags") }} </template>
     </RecipeOrganizerPage>
   </v-container>
 </template>
@@ -29,8 +30,10 @@ export default defineComponent({
       actions,
     };
   },
-  head: {
-    title: "Tags",
+  head() {
+    return {
+      title: this.$tc("tag.tags"),
+    };
   },
 });
 </script>

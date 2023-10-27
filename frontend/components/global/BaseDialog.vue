@@ -5,6 +5,7 @@
       v-model="dialog"
       absolute
       :width="width"
+      :max-width="maxWidth"
       :content-class="top ? 'top-dialog' : undefined"
       :fullscreen="$vuetify.breakpoint.xsOnly"
       @keydown.enter="
@@ -96,6 +97,10 @@ export default defineComponent({
       type: [Number, String],
       default: "500",
     },
+    maxWidth: {
+      type: [Number, String],
+      default: null,
+    },
     loading: {
       type: Boolean,
       default: false,
@@ -106,8 +111,9 @@ export default defineComponent({
     },
     submitText: {
       type: String,
-      // TODO Figure out how to localize this default value
-      default: () => "Create",
+      default: function () {
+        return this.$t("general.create");
+      },
     },
     keepOpen: {
       default: false,

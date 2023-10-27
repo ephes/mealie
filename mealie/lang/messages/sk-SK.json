@@ -5,6 +5,18 @@
     "recipe": {
         "unique-name-error": "Názov receptu musí byť unikátny"
     },
+    "mealplan": {
+        "no-recipes-match-your-rules": "Vaše pravidlá nespĺňa žiadny recept"
+    },
+    "user": {
+        "user-updated": "Užívateľ bol aktualizovaný",
+        "password-updated": "Heslo bolo aktualizované",
+        "invalid-current-password": "Aktuálne heslo neplatné",
+        "ldap-update-password-unavailable": "Aktualizácia hesla nie je možná, užívateľ je spravovaný LDAP"
+    },
+    "group": {
+        "report-deleted": "Report bol odstránený."
+    },
     "exceptions": {
         "permission_denied": "Nemáte povolenie na vykonanie tejto akcie",
         "no-entry-found": "404 - Požadovaná stránka nebola nájdená",
@@ -17,7 +29,7 @@
         "generic-updated": "{name} bol aktualizovaný",
         "generic-created-with-url": "{name} bol vytvorený, {url}",
         "generic-updated-with-url": "{name} bol aktualizovaný, {url}",
-        "generic-duplicated": "{name} has been duplicated",
+        "generic-duplicated": "{name} bol duplikovaný",
         "generic-deleted": "{name} bol vymazaný"
     }
 }

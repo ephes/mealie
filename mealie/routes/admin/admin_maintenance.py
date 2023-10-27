@@ -85,7 +85,6 @@ class AdminMaintenanceController(BaseAdminController):
 
     @router.get("/logs", response_model=MaintenanceLogs)
     def get_logs(self, lines: int = 200):
-
         return MaintenanceLogs(logs=tail_log(LOGGER_FILE, lines))
 
     @router.get("/storage", response_model=MaintenanceStorageDetails)
@@ -112,7 +111,9 @@ class AdminMaintenanceController(BaseAdminController):
     @router.post("/clean/temp", response_model=SuccessResponse)
     def clean_temp(self):
         try:
-            shutil.rmtree(self.folders.TEMP_DIR)
+            if self.folders.TEMP_DIR.exists():
+                shutil.rmtree(self.folders.TEMP_DIR)
+
             self.folders.TEMP_DIR.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             raise HTTPException(status_code=500, detail=ErrorResponse.respond("Failed to clean temp")) from e

@@ -1,47 +1,70 @@
-import { computed, reactive, ref, Ref } from "@nuxtjs/composition-api";
-import Fuse from "fuse.js";
+import { Ref, ref } from "@nuxtjs/composition-api";
+import { watchDebounced } from "@vueuse/core";
+import { UserApi } from "~/lib/api";
 import { Recipe } from "~/lib/api/types/recipe";
 
-export const useRecipeSearch = (recipes: Ref<Recipe[] | null>) => {
-  const localState = reactive({
-    options: {
-      ignoreLocation: true,
-      shouldSort: true,
-      threshold: 0.6,
-      location: 0,
-      distance: 100,
-      findAllMatches: true,
-      maxPatternLength: 32,
-      minMatchCharLength: 2,
-      keys: ["name", "description", "recipeIngredient.note", "recipeIngredient.food.name"],
+export interface UseRecipeSearchReturn {
+  query: Ref<string>;
+  error: Ref<string>;
+  loading: Ref<boolean>;
+  data: Ref<Recipe[]>;
+  trigger(): Promise<void>;
+}
+
+/**
+ * `useRecipeSearch` constructs a basic reactive search query
+ * that when `query` is changed, will search for recipes based
+ * on the query. Useful for searchable list views. For advanced
+ * search, use the `useRecipeQuery` composable.
+ */
+export function useRecipeSearch(api: UserApi): UseRecipeSearchReturn {
+  const query = ref("");
+  const error = ref("");
+  const loading = ref(false);
+  const recipes = ref<Recipe[]>([]);
+
+  async function searchRecipes(term: string) {
+    loading.value = true;
+    const { data, error } = await api.recipes.search({
+      search: term,
+      page: 1,
+      orderBy: "name",
+      orderDirection: "asc",
+      perPage: 20,
+      _searchSeed: Date.now().toString(),
+    });
+
+    if (error) {
+      console.error(error);
+      loading.value = false;
+      recipes.value = [];
+      return;
+    }
+
+    if (data) {
+      recipes.value = data.items;
+    }
+
+    loading.value = false;
+  }
+
+  watchDebounced(
+    () => query.value,
+    async (term: string) => {
+      await searchRecipes(term);
     },
-  });
+    { debounce: 500 }
+  );
 
-  const search = ref("");
+  async function trigger() {
+    await searchRecipes(query.value);
+  }
 
-  const fuse = computed(() => {
-    return new Fuse(recipes.value || [], localState.options);
-  });
-
-  const fuzzyRecipes = computed(() => {
-    if (search.value.trim() === "") {
-      return recipes.value;
-    }
-    const result = fuse.value.search(search.value.trim());
-    return result.map((x) => x.item);
-  });
-
-  const results = computed(() => {
-    if (!fuzzyRecipes.value) {
-      return [];
-    }
-
-    if (fuzzyRecipes.value.length > 0 && search.value.length != null && search.value.length >= 1) {
-      return fuzzyRecipes.value;
-    } else {
-      return recipes.value;
-    }
-  });
-
-  return { results, search };
-};
+  return {
+    query,
+    error,
+    loading,
+    data: recipes,
+    trigger,
+  };
+}

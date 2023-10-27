@@ -4,7 +4,7 @@
       <template #header>
         <v-img max-height="125" max-width="125" :src="require('~/static/svgs/manage-profile.svg')"></v-img>
       </template>
-      <template #title> Admin User Creation </template>
+      <template #title> {{ $t('user.admin-user-creation') }} </template>
     </BasePageTitle>
     <AppToolbar back> </AppToolbar>
     <v-form ref="refNewUserForm" @submit.prevent="handleSubmit">
@@ -20,7 +20,7 @@
             item-value="name"
             :return-object="false"
             filled
-            label="User Group"
+            :label="$t('group.user-group')"
             :rules="[validators.required]"
           ></v-select>
           <AutoForm v-model="newUserData" :items="userForm" />
@@ -67,6 +67,7 @@ export default defineComponent({
         canManage: false,
         canOrganize: false,
         password: "",
+        authMethod: "Mealie",
       },
     });
 
@@ -92,5 +93,4 @@ export default defineComponent({
 });
 </script>
 
-<style lang="scss" scoped>
-</style>
+<style lang="scss" scoped></style>

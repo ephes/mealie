@@ -8,9 +8,15 @@ migrations_paprika = CWD / "migrations/paprika.zip"
 
 migrations_chowdown = CWD / "migrations/chowdown.zip"
 
+migrations_copymethat = CWD / "migrations/copymethat.zip"
+
 migrations_mealie = CWD / "migrations/mealie.zip"
 
 migrations_nextcloud = CWD / "migrations/nextcloud.zip"
+
+migrations_tandoor = CWD / "migrations/tandoor.zip"
+
+migrations_plantoeat = CWD / "migrations/plantoeat.zip"
 
 images_test_image_1 = CWD / "images/test-image-1.jpg"
 

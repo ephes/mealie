@@ -9,15 +9,17 @@
 
     <!-- Viewer -->
     <section v-if="!edit" class="py-2">
-      <div v-if="!byLabel">
-        <draggable :value="shoppingList.listItems" handle=".handle" @start="loadingCounter += 1" @end="loadingCounter -= 1" @input="updateIndex">
-          <v-lazy v-for="(item, index) in listItems.unchecked" :key="item.id">
+      <div v-if="!preferences.viewByLabel">
+        <draggable :value="listItems.unchecked" handle=".handle" delay="250" :delay-on-touch-only="true"  @start="loadingCounter += 1" @end="loadingCounter -= 1" @input="updateIndexUnchecked">
+          <v-lazy v-for="(item, index) in listItems.unchecked" :key="item.id" class="my-2">
             <ShoppingListItem
               v-model="listItems.unchecked[index]"
               class="my-2 my-sm-0"
+              :show-label=true
               :labels="allLabels || []"
               :units="allUnits || []"
               :foods="allFoods || []"
+              :recipes="recipeMap"
               @checked="saveListItem"
               @save="saveListItem"
               @delete="deleteListItem(item)"
@@ -28,28 +30,43 @@
 
       <!-- View By Label -->
       <div v-else>
-        <div v-for="(value, key) in itemsByLabel" :key="key" class="mb-6">
+        <div v-for="(value, key, idx) in itemsByLabel" :key="key" class="mb-6">
           <div @click="toggleShowChecked()">
-            <span>
-              <v-icon>
+            <span v-if="idx || key !== $tc('shopping-list.no-label')">
+              <v-icon :color="getLabelColor(value[0])">
                 {{ $globals.icons.tags }}
               </v-icon>
             </span>
             {{ key }}
           </div>
-          <v-lazy v-for="(item, index) in value" :key="item.id">
-            <ShoppingListItem
-              v-model="value[index]"
-              :labels="allLabels || []"
-              :units="allUnits || []"
-              :foods="allFoods || []"
-              @checked="saveListItem"
-              @save="saveListItem"
-              @delete="deleteListItem(item)"
-            />
-          </v-lazy>
+          <draggable :value="value" handle=".handle" delay="250" :delay-on-touch-only="true" @start="loadingCounter += 1" @end="loadingCounter -= 1" @input="updateIndexUncheckedByLabel(key, $event)">
+            <v-lazy v-for="(item, index) in value" :key="item.id" class="ml-2 my-2">
+              <ShoppingListItem
+                v-model="value[index]"
+                :show-label=false
+                :labels="allLabels || []"
+                :units="allUnits || []"
+                :foods="allFoods || []"
+                :recipes="recipeMap"
+                @checked="saveListItem"
+                @save="saveListItem"
+                @delete="deleteListItem(item)"
+              />
+            </v-lazy>
+          </draggable>
         </div>
       </div>
+
+      <!-- Reorder Labels -->
+      <BaseDialog v-model="reorderLabelsDialog" :icon="$globals.icons.tagArrowUp" :title="$t('shopping-list.reorder-labels')">
+        <v-card height="fit-content" max-height="70vh" style="overflow-y: auto;">
+          <draggable :value="shoppingList.labelSettings" handle=".handle" class="my-2" @start="loadingCounter += 1" @end="loadingCounter -= 1" @input="updateLabelOrder">
+            <div v-for="(labelSetting, index) in shoppingList.labelSettings" :key="labelSetting.id">
+              <MultiPurposeLabelSection v-model="shoppingList.labelSettings[index]" use-color />
+            </div>
+          </draggable>
+        </v-card>
+      </BaseDialog>
 
       <!-- Create Item -->
       <div v-if="createEditorOpen">
@@ -65,6 +82,10 @@
         />
       </div>
       <div v-else class="mt-4 d-flex justify-end">
+        <BaseButton v-if="preferences.viewByLabel" color="info" class="mr-2" @click="reorderLabelsDialog = true">
+          <template #icon> {{ $globals.icons.tags }} </template>
+          {{ $t('shopping-list.reorder-labels') }}
+        </BaseButton>
         <BaseButton create @click="createEditorOpen = true" />
       </div>
 
@@ -79,29 +100,29 @@
               children: [
                 {
                   icon: $globals.icons.contentCopy,
-                  text: 'Copy as Text',
+                  text: $tc('shopping-list.copy-as-text'),
                   event: 'copy-plain',
                 },
                 {
                   icon: $globals.icons.contentCopy,
-                  text: 'Copy as Markdown',
+                  text: $tc('shopping-list.copy-as-markdown'),
                   event: 'copy-markdown',
                 },
               ],
             },
             {
               icon: $globals.icons.delete,
-              text: 'Delete Checked',
+              text: $tc('shopping-list.delete-checked'),
               event: 'delete',
             },
             {
               icon: $globals.icons.tags,
-              text: 'Toggle Label Sort',
+              text: $tc('shopping-list.toggle-label-sort'),
               event: 'sort-by-labels',
             },
             {
               icon: $globals.icons.checkboxBlankOutline,
-              text: 'Uncheck All Items',
+              text: $tc('shopping-list.uncheck-all-items'),
               event: 'uncheck',
             },
           ]"
@@ -122,7 +143,7 @@
               {{ showChecked ? $globals.icons.chevronDown : $globals.icons.chevronRight }}
             </v-icon>
           </span>
-          {{ listItems.checked ? listItems.checked.length : 0 }} items checked
+          {{ $tc('shopping-list.items-checked-count', listItems.checked ? listItems.checked.length : 0) }}
         </button>
         <v-divider class="my-4"></v-divider>
         <v-expand-transition>
@@ -131,7 +152,7 @@
               <ShoppingListItem
                 v-model="listItems.checked[idx]"
                 class="strike-through-note"
-                :labels="allLabels"
+                :labels="allLabels || []"
                 :units="allUnits || []"
                 :foods="allFoods || []"
                 @checked="saveListItem"
@@ -153,11 +174,11 @@
               {{ $globals.icons.primary }}
             </v-icon>
           </span>
-          {{ shoppingList.recipeReferences ? shoppingList.recipeReferences.length : 0 }} Linked Recipes
+          {{ $tc('shopping-list.linked-recipes-count', shoppingList.recipeReferences ? shoppingList.recipeReferences.length : 0) }}
         </div>
         <v-divider class="my-4"></v-divider>
-        <RecipeList :recipes="listRecipes">
-          <template v-for="(recipe, index) in listRecipes" #[`actions-${recipe.id}`]>
+        <RecipeList :recipes="Array.from(recipeMap.values())" show-description>
+          <template v-for="(recipe, index) in recipeMap.values()" #[`actions-${recipe.id}`]>
             <v-list-item-action :key="'item-actions-decrease' + recipe.id">
               <v-btn icon @click.prevent="removeRecipeReferenceToList(recipe.id)">
                 <v-icon color="grey lighten-1">{{ $globals.icons.minus }}</v-icon>
@@ -178,7 +199,7 @@
 
     <v-lazy>
       <div class="d-flex justify-end mt-10">
-        <ButtonLink to="/group/data/labels" text="Manage Labels" :icon="$globals.icons.tags" />
+        <ButtonLink to="/group/data/labels" :text="$tc('shopping-list.manage-labels')" :icon="$globals.icons.tags" />
       </div>
     </v-lazy>
   </v-container>
@@ -187,17 +208,17 @@
 <script lang="ts">
 import draggable from "vuedraggable";
 
-import { defineComponent, useAsync, useRoute, computed, ref, watch, onUnmounted } from "@nuxtjs/composition-api";
+import { defineComponent, useRoute, computed, ref, onUnmounted, useContext } from "@nuxtjs/composition-api";
 import { useIdle, useToggle } from "@vueuse/core";
 import { useCopyList } from "~/composables/use-copy";
 import { useUserApi } from "~/composables/api";
-import { useAsyncKey } from "~/composables/use-utils";
+import MultiPurposeLabelSection from "~/components/Domain/ShoppingList/MultiPurposeLabelSection.vue"
 import ShoppingListItem from "~/components/Domain/ShoppingList/ShoppingListItem.vue";
-import { ShoppingListItemCreate, ShoppingListItemOut } from "~/lib/api/types/group";
+import { ShoppingListItemCreate, ShoppingListItemOut, ShoppingListMultiPurposeLabelOut, ShoppingListOut } from "~/lib/api/types/group";
 import RecipeList from "~/components/Domain/Recipe/RecipeList.vue";
 import ShoppingListItemEditor from "~/components/Domain/ShoppingList/ShoppingListItemEditor.vue";
-import { getDisplayText } from "~/composables/use-display-text";
 import { useFoodStore, useLabelStore, useUnitStore } from "~/composables/store";
+import { useShoppingListPreferences } from "~/composables/use-users/preferences";
 
 type CopyTypes = "plain" | "markdown";
 
@@ -209,29 +230,31 @@ interface PresentLabel {
 export default defineComponent({
   components: {
     draggable,
+    MultiPurposeLabelSection,
     ShoppingListItem,
     RecipeList,
     ShoppingListItemEditor,
   },
   setup() {
+    const preferences = useShoppingListPreferences();
+
     const { idle } = useIdle(5 * 60 * 1000) // 5 minutes
     const loadingCounter = ref(1);
     const recipeReferenceLoading = ref(false);
     const userApi = useUserApi();
 
     const edit = ref(false);
-    const byLabel = ref(false);
+    const reorderLabelsDialog = ref(false);
 
     const route = useRoute();
     const id = route.value.params.id;
 
+    const { i18n } = useContext();
+
     // ===============================================================
     // Shopping List Actions
 
-    const shoppingList = useAsync(async () => {
-      return await fetchShoppingList();
-    }, useAsyncKey());
-
+    const shoppingList = ref<ShoppingListOut | null>(null);
     async function fetchShoppingList() {
       const { data } = await userApi.shopping.lists.getOne(id);
       return data;
@@ -245,6 +268,8 @@ export default defineComponent({
       // only update the list with the new value if we're not loading, to prevent UI jitter
       if (!loadingCounter.value) {
         shoppingList.value = newListValue;
+        sortListItems();
+        updateItemsByLabel();
       }
     }
 
@@ -280,6 +305,7 @@ export default defineComponent({
     // start polling
     loadingCounter.value -= 1;
     const pollFrequency = 5000;
+    pollForChanges();  // populate initial list
 
     let attempts = 0;
     const maxAttempts = 3;
@@ -294,8 +320,11 @@ export default defineComponent({
 
     const listItems = computed(() => {
       return {
-        checked: shoppingList.value?.listItems?.filter((item) => item.checked) ?? [],
         unchecked: shoppingList.value?.listItems?.filter((item) => !item.checked) ?? [],
+        checked: shoppingList.value?.listItems
+          ?.filter((item) => item.checked)
+          .sort((a, b) => (a.updateAt < b.updateAt ? 1 : -1))
+          ?? [],
       };
     });
 
@@ -313,7 +342,7 @@ export default defineComponent({
         return;
       }
 
-      const text = items.map((itm) => getDisplayText(itm.note, itm.quantity, itm.food, itm.unit));
+      const text: string[] = items.map((itm) => itm.display || "");
 
       switch (copyType) {
         case "markdown":
@@ -393,8 +422,39 @@ export default defineComponent({
     const { units: allUnits } = useUnitStore();
     const { foods: allFoods } = useFoodStore();
 
+    function getLabelColor(item: ShoppingListItemOut | null) {
+      return item?.label?.color;
+    }
+
     function sortByLabels() {
-      byLabel.value = !byLabel.value;
+      preferences.value.viewByLabel = !preferences.value.viewByLabel;
+    }
+
+    function toggleReorderLabelsDialog() {
+      reorderLabelsDialog.value = !reorderLabelsDialog.value
+    }
+
+    async function updateLabelOrder(labelSettings: ShoppingListMultiPurposeLabelOut[]) {
+      if (!shoppingList.value) {
+        return;
+      }
+
+      labelSettings.forEach((labelSetting, index) => {
+        labelSetting.position = index;
+        return labelSetting;
+      });
+
+      // setting this doesn't have any effect on the data since it's refreshed automatically, but it makes the ux feel smoother
+      shoppingList.value.labelSettings = labelSettings;
+      updateItemsByLabel();
+
+      loadingCounter.value += 1;
+      const { data } = await userApi.shopping.lists.updateLabelSettings(shoppingList.value.id, labelSettings);
+      loadingCounter.value -= 1;
+
+      if (data) {
+        refresh();
+      }
     }
 
     const presentLabels = computed(() => {
@@ -414,12 +474,19 @@ export default defineComponent({
 
     const itemsByLabel = ref<{ [key: string]: ShoppingListItemOut[] }>({});
 
+    function sortListItems() {
+      if (!shoppingList.value?.listItems?.length) {
+        return;
+      }
+
+      // sort by position ascending, then createdAt descending
+      shoppingList.value.listItems.sort((a, b) => (a.position > b.position || a.createdAt < b.createdAt ? 1 : -1))
+    }
+
     function updateItemsByLabel() {
       const items: { [prop: string]: ShoppingListItemOut[] } = {};
-
-      const noLabel = {
-        "No Label": [] as ShoppingListItemOut[],
-      };
+      const noLabelText = i18n.tc("shopping-list.no-label");
+      const noLabel = [] as ShoppingListItemOut[];
 
       shoppingList.value?.listItems?.forEach((item) => {
         if (item.checked) {
@@ -433,20 +500,34 @@ export default defineComponent({
             items[item.label.name] = [item];
           }
         } else {
-          noLabel["No Label"].push(item);
+          noLabel.push(item);
         }
       });
 
-      if (noLabel["No Label"].length > 0) {
-        items["No Label"] = noLabel["No Label"];
+      if (noLabel.length > 0) {
+        items[noLabelText] = noLabel;
       }
 
-      itemsByLabel.value = items;
-    }
+      // sort the map by label order
+      const orderedLabelNames = shoppingList.value?.labelSettings?.map((labelSetting) => { return labelSetting.label.name; })
+      if (!orderedLabelNames) {
+        itemsByLabel.value = items;
+        return;
+      }
 
-    watch(shoppingList, () => {
-      updateItemsByLabel();
-    });
+      const itemsSorted: { [prop: string]: ShoppingListItemOut[] } = {};
+      if (noLabelText in items) {
+        itemsSorted[noLabelText] = items[noLabelText];
+      }
+
+      orderedLabelNames.forEach(labelName => {
+        if (labelName in items) {
+          itemsSorted[labelName] = items[labelName];
+        }
+      });
+
+      itemsByLabel.value = itemsSorted;
+    }
 
     async function refreshLabels() {
       const { data } = await userApi.multiPurposeLabels.getAll();
@@ -461,9 +542,10 @@ export default defineComponent({
     // =====================================
     // Add/Remove Recipe References
 
-    const listRecipes = computed<Array<any>>(() => {
-      return shoppingList.value?.recipeReferences?.map((ref) => ref.recipe) ?? [];
-    });
+    const recipeMap = computed(() => new Map(
+      (shoppingList.value?.recipeReferences?.map((ref) => ref.recipe) ?? [])
+        .map((recipe) => [recipe.id || "", recipe]))
+    );
 
     async function addRecipeReferenceToList(recipeId: string) {
       if (!shoppingList.value || recipeReferenceLoading.value) {
@@ -510,13 +592,31 @@ export default defineComponent({
         return;
       }
 
-      loadingCounter.value += 1;
       if (item.checked && shoppingList.value.listItems) {
         const lst = shoppingList.value.listItems.filter((itm) => itm.id !== item.id);
         lst.push(item);
-        updateIndex(lst);
+
+        // make sure the item is at the end of the list with the other checked items
+        item.position = shoppingList.value.listItems.length;
+
+        // set a temporary updatedAt timestamp prior to refresh so it appears at the top of the checked items
+        item.updateAt = new Date().toISOString();
+        item.updateAt = item.updateAt.substring(0, item.updateAt.length-1);
       }
 
+      // make updates reflect immediately
+      if (shoppingList.value.listItems) {
+        shoppingList.value.listItems.forEach((oldListItem: ShoppingListItemOut, idx: number) => {
+          if (oldListItem.id === item.id && shoppingList.value?.listItems) {
+            shoppingList.value.listItems[idx] = item;
+          }
+        });
+      }
+
+      sortListItems();
+      updateItemsByLabel();
+
+      loadingCounter.value += 1;
       const { data } = await userApi.shopping.items.updateOne(item.id, item);
       loadingCounter.value -= 1;
 
@@ -553,9 +653,9 @@ export default defineComponent({
         isFood: false,
         quantity: 1,
         note: "",
-        unit: undefined,
-        food: undefined,
         labelId: undefined,
+        unitId: undefined,
+        foodId: undefined,
       };
     }
 
@@ -567,7 +667,9 @@ export default defineComponent({
       loadingCounter.value += 1;
 
       // make sure it's inserted into the end of the list, which may have been updated
-      createListItemData.value.position = shoppingList.value?.listItems?.length || 1;
+      createListItemData.value.position = shoppingList.value?.listItems?.length
+        ? (shoppingList.value.listItems.reduce((a, b) => (a.position || 0) > (b.position || 0) ? a : b).position || 0) + 1
+        : 0;
       const { data } = await userApi.shopping.items.createOne(createListItemData.value);
       loadingCounter.value -= 1;
 
@@ -578,12 +680,31 @@ export default defineComponent({
       }
     }
 
-    function updateIndex(data: ShoppingListItemOut[]) {
+    function updateIndexUnchecked(uncheckedItems: ShoppingListItemOut[]) {
       if (shoppingList.value?.listItems) {
-        shoppingList.value.listItems = data;
+        // move the new unchecked items in front of the checked items
+        shoppingList.value.listItems = uncheckedItems.concat(listItems.value.checked);
       }
 
       updateListItems();
+    }
+
+    function updateIndexUncheckedByLabel(labelName: string, labeledUncheckedItems: ShoppingListItemOut[]) {
+      if (!itemsByLabel.value[labelName]) {
+        return;
+      }
+
+      // update this label's item order
+      itemsByLabel.value[labelName] = labeledUncheckedItems;
+
+      // reset list order of all items
+      const allUncheckedItems: ShoppingListItemOut[] = [];
+      for (labelName in itemsByLabel.value) {
+        allUncheckedItems.push(...itemsByLabel.value[labelName]);
+      }
+
+      // save changes
+      return updateIndexUnchecked(allUncheckedItems);
     }
 
     async function deleteListItems(items: ShoppingListItemOut[]) {
@@ -606,7 +727,7 @@ export default defineComponent({
       }
 
       // Set Position
-      shoppingList.value.listItems = shoppingList.value.listItems.map((itm: ShoppingListItemOut, idx: number) => {
+      shoppingList.value.listItems = listItems.value.unchecked.concat(listItems.value.checked).map((itm: ShoppingListItemOut, idx: number) => {
         itm.position = idx;
         return itm;
       });
@@ -624,7 +745,6 @@ export default defineComponent({
       addRecipeReferenceToList,
       updateListItems,
       allLabels,
-      byLabel,
       contextMenu,
       contextMenuAction,
       copyListItems,
@@ -634,19 +754,25 @@ export default defineComponent({
       deleteChecked,
       deleteListItem,
       edit,
+      getLabelColor,
       itemsByLabel,
       listItems,
-      listRecipes,
       loadingCounter,
+      preferences,
       presentLabels,
+      recipeMap,
       removeRecipeReferenceToList,
+      reorderLabelsDialog,
+      toggleReorderLabelsDialog,
+      updateLabelOrder,
       saveListItem,
       shoppingList,
       showChecked,
       sortByLabels,
       toggleShowChecked,
       uncheckAll,
-      updateIndex,
+      updateIndexUnchecked,
+      updateIndexUncheckedByLabel,
       allUnits,
       allFoods,
     };

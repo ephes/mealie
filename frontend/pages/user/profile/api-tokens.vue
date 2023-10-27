@@ -5,7 +5,7 @@
         <v-img max-height="200px" max-width="200px" :src="require('~/static/svgs/manage-api-tokens.svg')"></v-img>
       </template>
       <template #title> API Tokens </template>
-      You have {{ user.tokens.length }} active tokens.
+      {{ $tc('settings.token.you-have-token-count', user.tokens.length) }}
     </BasePageTitle>
     <section class="d-flex justify-center">
       <v-card class="mt-4" width="500px">
@@ -33,25 +33,25 @@
           </template>
         </v-card-text>
         <v-card-actions>
-          <BaseButton v-if="createdToken" cancel @click="resetCreate()"> Close </BaseButton>
+          <BaseButton v-if="createdToken" cancel @click="resetCreate()"> {{ $t('general.close') }} </BaseButton>
           <v-spacer></v-spacer>
           <AppButtonCopy v-if="createdToken" :icon="false" color="info" :copy-text="createdToken"> </AppButtonCopy>
           <BaseButton v-else key="generate-button" :disabled="name == ''" @click="createToken(name)">
-            Generate
+            {{ $t('settings.token.generate') }}
           </BaseButton>
         </v-card-actions>
       </v-card>
     </section>
     <BaseCardSectionTitle class="mt-10" title="Active Tokens"> </BaseCardSectionTitle>
-    <section class="d-flex flex-column align-center justify-center">
-      <div v-for="(token, index) in $auth.user.tokens" :key="index" class="d-flex my-2">
-        <v-card outlined width="500px">
+    <section class="d-flex flex-column">
+      <div v-for="(token, index) in $auth.user.tokens" :key="index">
+        <v-card outlined class="mb-2">
           <v-list-item>
             <v-list-item-content>
               <v-list-item-title>
                 {{ token.name }}
               </v-list-item-title>
-              <v-list-item-subtitle> Created on: {{ $d(new Date(token.createdAt+"Z")) }} </v-list-item-subtitle>
+              <v-list-item-subtitle> {{ $t('general.created-on-date', [$d(new Date(token.createdAt+"Z"))]) }} </v-list-item-subtitle>
             </v-list-item-content>
             <v-list-item-action>
               <BaseButton delete small @click="deleteToken(token.id)"></BaseButton>

@@ -49,7 +49,7 @@ class GroupEventsNotifierController(BaseUserController):
 
     @property
     def mixins(self) -> HttpRepo:
-        return HttpRepo(self.repo, self.logger, self.registered_exceptions, "An unexpected error occurred.")
+        return HttpRepo(self.repo, self.logger, self.registered_exceptions, self.t("generic.server-error"))
 
     @router.get("", response_model=GroupEventPagination)
     def get_all(self, q: PaginationQuery = Depends(PaginationQuery)):
@@ -100,5 +100,5 @@ class GroupEventsNotifierController(BaseUserController):
             document_data=EventDocumentDataBase(document_type=EventDocumentType.generic, operation=EventOperation.info),
         )
 
-        test_listener = AppriseEventListener(self.event_bus.session, self.group_id)
+        test_listener = AppriseEventListener(self.group_id)
         test_listener.publish_to_subscribers(test_event, [item.apprise_url])

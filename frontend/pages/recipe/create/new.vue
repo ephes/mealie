@@ -1,9 +1,9 @@
 <template>
   <div>
-    <v-card-title class="headline"> Create Recipe </v-card-title>
+    <v-card-title class="headline"> {{ $t('recipe.create-recipe') }} </v-card-title>
     <v-card-text>
-      Create a recipe by providing the name. All recipes must have unique names.
-      <v-form ref="domCreateByName">
+      {{ $t('recipe.create-a-recipe-by-providing-the-name-all-recipes-must-have-unique-names') }}
+      <v-form ref="domCreateByName" @submit.prevent>
         <v-text-field
           v-model="newRecipeName"
           :label="$t('recipe.recipe-name')"
@@ -15,8 +15,9 @@
           class="rounded-lg mt-2"
           rounded
           :rules="[validators.required]"
-          hint="New recipe names must be unique"
+          :hint="$t('recipe.new-recipe-names-must-be-unique')"
           persistent-hint
+          @keyup.enter="createByName(newRecipeName)"
         ></v-text-field>
       </v-form>
     </v-card-text>

@@ -5,6 +5,18 @@
     "recipe": {
         "unique-name-error": "Názvy receptů musí být jedinečné"
     },
+    "mealplan": {
+        "no-recipes-match-your-rules": "Žádné recepty neodpovídají vašim pravidlům"
+    },
+    "user": {
+        "user-updated": "Uživatel aktualizován",
+        "password-updated": "Heslo aktualizováno",
+        "invalid-current-password": "Nesprávné aktuální heslo",
+        "ldap-update-password-unavailable": "Nelze aktualizovat heslo, uživatel je řízen pomocí LDAP"
+    },
+    "group": {
+        "report-deleted": "Report odstraněn."
+    },
     "exceptions": {
         "permission_denied": "K provedení této akce nemáte oprávnění",
         "no-entry-found": "Požadovaný zdroj nebyl nalezen",
@@ -17,7 +29,7 @@
         "generic-updated": "{name} byl aktualizován",
         "generic-created-with-url": "{name} byl vytvořen, {url}",
         "generic-updated-with-url": "{name} byl aktualizován, {url}",
-        "generic-duplicated": "{name} has been duplicated",
+        "generic-duplicated": "{name} byl duplikován",
         "generic-deleted": "{name} byl odstraněn"
     }
 }

@@ -1,10 +1,12 @@
 import { BaseCRUDAPI } from "../base/base-clients";
+import { RecipeIngredient } from "../types/recipe";
 import { ApiRequestInstance } from "~/lib/api/types/non-generated";
 import {
   ShoppingListCreate,
   ShoppingListItemCreate,
   ShoppingListItemOut,
-  ShoppingListItemUpdate,
+  ShoppingListItemUpdateBulk,
+  ShoppingListMultiPurposeLabelUpdate,
   ShoppingListOut,
   ShoppingListUpdate,
 } from "~/lib/api/types/group";
@@ -16,6 +18,7 @@ const routes = {
   shoppingListsId: (id: string) => `${prefix}/groups/shopping/lists/${id}`,
   shoppingListIdAddRecipe: (id: string, recipeId: string) => `${prefix}/groups/shopping/lists/${id}/recipe/${recipeId}`,
   shoppingListIdRemoveRecipe: (id: string, recipeId: string) => `${prefix}/groups/shopping/lists/${id}/recipe/${recipeId}/delete`,
+  shoppingListIdUpdateLabelSettings: (id: string) => `${prefix}/groups/shopping/lists/${id}/label-settings`,
 
   shoppingListItems: `${prefix}/groups/shopping/items`,
   shoppingListItemsId: (id: string) => `${prefix}/groups/shopping/items/${id}`,
@@ -25,19 +28,23 @@ export class ShoppingListsApi extends BaseCRUDAPI<ShoppingListCreate, ShoppingLi
   baseRoute = routes.shoppingLists;
   itemRoute = routes.shoppingListsId;
 
-  async addRecipe(itemId: string, recipeId: string, recipeIncrementQuantity = 1) {
-    return await this.requests.post(routes.shoppingListIdAddRecipe(itemId, recipeId), {recipeIncrementQuantity});
+  async addRecipe(itemId: string, recipeId: string, recipeIncrementQuantity = 1, recipeIngredients: RecipeIngredient[] | null = null) {
+    return await this.requests.post(routes.shoppingListIdAddRecipe(itemId, recipeId), { recipeIncrementQuantity, recipeIngredients });
   }
 
   async removeRecipe(itemId: string, recipeId: string, recipeDecrementQuantity = 1) {
-    return await this.requests.post(routes.shoppingListIdRemoveRecipe(itemId, recipeId), {recipeDecrementQuantity});
+    return await this.requests.post(routes.shoppingListIdRemoveRecipe(itemId, recipeId), { recipeDecrementQuantity });
+  }
+
+  async updateLabelSettings(itemId: string, listSettings: ShoppingListMultiPurposeLabelUpdate[]) {
+    return await this.requests.put(routes.shoppingListIdUpdateLabelSettings(itemId), listSettings);
   }
 }
 
 export class ShoppingListItemsApi extends BaseCRUDAPI<
   ShoppingListItemCreate,
   ShoppingListItemOut,
-  ShoppingListItemUpdate
+  ShoppingListItemUpdateBulk
 > {
   baseRoute = routes.shoppingListItems;
   itemRoute = routes.shoppingListItemsId;

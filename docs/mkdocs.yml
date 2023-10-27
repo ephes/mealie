@@ -70,17 +70,17 @@ nav:
           - Installation Checklist: "documentation/getting-started/installation/installation-checklist.md"
           - SQLite (Recommended): "documentation/getting-started/installation/sqlite.md"
           - PostgreSQL: "documentation/getting-started/installation/postgres.md"
-          - Single Container (Experimental): "documentation/getting-started/installation/single-container.md"
-          - Frontend Configuration: "documentation/getting-started/installation/frontend-config.md"
           - Backend Configuration: "documentation/getting-started/installation/backend-config.md"
       - Usage:
           - Backup and Restoring: "documentation/getting-started/usage/backups-and-restoring.md"
+          - LDAP Authentication: "documentation/getting-started/usage/ldap.md"
 
       - Community Guides:
           - iOS Shortcuts: "documentation/community-guide/ios.md"
           - Reverse Proxy (SWAG): "documentation/community-guide/swag.md"
           - Home Assistant: "documentation/community-guide/home-assistant.md"
           - Bulk Url Import: "documentation/community-guide/bulk-url-import.md"
+          - Import Bookmarklet: "documentation/community-guide/import-recipe-bookmarklet.md"
 
   - API Reference: "api/redoc.md"
 
@@ -90,10 +90,12 @@ nav:
       - Developers Guide:
           - Code Contributions: "contributors/developers-guide/code-contributions.md"
           - Dev Getting Started: "contributors/developers-guide/starting-dev-server.md"
+          - Maintainers Guide: "contributors/developers-guide/maintainers.md"
       - Guides:
           - Improving Ingredient Parser: "contributors/guides/ingredient-parser.md"
 
   - Change Log:
+      - v1.0.0beta-5: "changelog/v1.0.0beta-5.md"
       - v1.0.0beta-4: "changelog/v1.0.0beta-4.md"
       - v1.0.0beta-3: "changelog/v1.0.0beta-3.md"
       - v1.0.0beta-2: "changelog/v1.0.0beta-2.md"

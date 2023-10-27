@@ -1,6 +1,12 @@
 import json
+import os
+import random
+import shutil
+import tempfile
 from pathlib import Path
-from typing import Optional, Union
+from typing import Generator
+from uuid import uuid4
+from zipfile import ZipFile
 
 import pytest
 from bs4 import BeautifulSoup
@@ -10,16 +16,35 @@ from recipe_scrapers._abstract import AbstractScraper
 from recipe_scrapers._schemaorg import SchemaOrg
 from slugify import slugify
 
-from mealie.schema.recipe.recipe import RecipeCategory
+from mealie.repos.repository_factory import AllRepositories
+from mealie.schema.recipe.recipe import RecipeCategory, RecipeSummary, RecipeTag
 from mealie.services.recipe.recipe_data_service import RecipeDataService
-from mealie.services.scraper.scraper_strategies import RecipeScraperOpenGraph
+from mealie.services.scraper.recipe_scraper import DEFAULT_SCRAPER_STRATEGIES
 from tests import data, utils
 from tests.utils import api_routes
-from tests.utils.factories import random_string
+from tests.utils.factories import random_int, random_string
 from tests.utils.fixture_schemas import TestUser
 from tests.utils.recipe_data import RecipeSiteTestCase, get_recipe_test_cases
 
 recipe_test_data = get_recipe_test_cases()
+
+
+@pytest.fixture(scope="module")
+def tempdir() -> Generator[str, None, None]:
+    with tempfile.TemporaryDirectory() as td:
+        yield td
+
+
+def zip_recipe(tempdir: str, recipe: RecipeSummary) -> dict:
+    data_file = tempfile.NamedTemporaryFile(mode="w+", dir=tempdir, suffix=".json", delete=False)
+    json.dump(json.loads(recipe.json()), data_file)
+    data_file.flush()
+
+    zip_file = shutil.make_archive(os.path.join(tempdir, "zipfile"), "zip")
+    with ZipFile(zip_file, "w") as zf:
+        zf.write(data_file.name)
+
+    return {"archive": Path(zip_file).read_bytes()}
 
 
 def get_init(html_path: Path):
@@ -31,9 +56,9 @@ def get_init(html_path: Path):
     def init_override(
         self,
         url,
-        proxies: Optional[str] = None,
-        timeout: Optional[Union[float, tuple, None]] = None,
-        wild_mode: Optional[bool] = False,
+        proxies: str | None = None,
+        timeout: float | tuple | None = None,
+        wild_mode: bool | None = False,
         **_,
     ):
         page_data = html_path.read_bytes()
@@ -48,7 +73,7 @@ def get_init(html_path: Path):
 
 
 def open_graph_override(html: str):
-    def get_html(self) -> str:
+    async def get_html(self, url: str) -> str:
         return html
 
     return get_html
@@ -68,11 +93,12 @@ def test_create_by_url(
         get_init(recipe_data.html_file),
     )
     # Override the get_html method of the RecipeScraperOpenGraph to return the test html
-    monkeypatch.setattr(
-        RecipeScraperOpenGraph,
-        "get_html",
-        open_graph_override(recipe_data.html_file.read_text()),
-    )
+    for scraper_cls in DEFAULT_SCRAPER_STRATEGIES:
+        monkeypatch.setattr(
+            scraper_cls,
+            "get_html",
+            open_graph_override(recipe_data.html_file.read_text()),
+        )
     # Skip image downloader
     monkeypatch.setattr(
         RecipeDataService,
@@ -89,6 +115,16 @@ def test_create_by_url(
     assert response.status_code == 201
     assert json.loads(response.text) == recipe_data.expected_slug
 
+    recipe = api_client.get(api_routes.recipes_slug(recipe_data.expected_slug), headers=unique_user.token)
+
+    assert recipe.status_code == 200
+
+    recipe_dict: dict = json.loads(recipe.text)
+
+    assert recipe_dict["slug"] == recipe_data.expected_slug
+    assert len(recipe_dict["recipeInstructions"]) == recipe_data.num_steps
+    assert len(recipe_dict["recipeIngredient"]) == recipe_data.num_ingredients
+
 
 def test_create_by_url_with_tags(
     api_client: TestClient,
@@ -103,12 +139,13 @@ def test_create_by_url_with_tags(
         "__init__",
         get_init(html_file),
     )
-    # Override the get_html method of the RecipeScraperOpenGraph to return the test html
-    monkeypatch.setattr(
-        RecipeScraperOpenGraph,
-        "get_html",
-        open_graph_override(html_file.read_text()),
-    )
+    # Override the get_html method of all scraper strategies to return the test html
+    for scraper_cls in DEFAULT_SCRAPER_STRATEGIES:
+        monkeypatch.setattr(
+            scraper_cls,
+            "get_html",
+            open_graph_override(html_file.read_text()),
+        )
     # Skip image downloader
     monkeypatch.setattr(
         RecipeDataService,
@@ -152,6 +189,257 @@ def test_create_by_url_with_tags(
         assert tag["name"] in expected_tags
 
 
+def test_create_recipe_from_zip(database: AllRepositories, api_client: TestClient, unique_user: TestUser, tempdir: str):
+    recipe_name = random_string()
+    recipe = RecipeSummary(
+        id=uuid4(),
+        user_id=unique_user.user_id,
+        group_id=unique_user.group_id,
+        name=recipe_name,
+        slug=recipe_name,
+    )
+
+    r = api_client.post(
+        api_routes.recipes_create_from_zip, files=zip_recipe(tempdir, recipe), headers=unique_user.token
+    )
+    assert r.status_code == 201
+
+    fetched_recipe = database.recipes.get_by_slug(unique_user.group_id, recipe.slug)
+    assert fetched_recipe
+
+
+def test_create_recipe_from_zip_invalid_group(
+    database: AllRepositories, api_client: TestClient, unique_user: TestUser, tempdir: str
+):
+    recipe_name = random_string()
+    recipe = RecipeSummary(
+        id=uuid4(),
+        user_id=unique_user.user_id,
+        group_id=uuid4(),
+        name=recipe_name,
+        slug=recipe_name,
+    )
+
+    r = api_client.post(
+        api_routes.recipes_create_from_zip, files=zip_recipe(tempdir, recipe), headers=unique_user.token
+    )
+    assert r.status_code == 201
+
+    fetched_recipe = database.recipes.get_by_slug(unique_user.group_id, recipe.slug)
+    assert fetched_recipe
+
+    # the group should always be set to the current user's group
+    assert str(fetched_recipe.group_id) == str(unique_user.group_id)
+
+
+def test_create_recipe_from_zip_invalid_user(
+    database: AllRepositories, api_client: TestClient, unique_user: TestUser, tempdir: str
+):
+    recipe_name = random_string()
+    recipe = RecipeSummary(
+        id=uuid4(),
+        user_id=uuid4(),
+        group_id=unique_user.group_id,
+        name=recipe_name,
+        slug=recipe_name,
+    )
+
+    r = api_client.post(
+        api_routes.recipes_create_from_zip, files=zip_recipe(tempdir, recipe), headers=unique_user.token
+    )
+    assert r.status_code == 201
+
+    fetched_recipe = database.recipes.get_by_slug(unique_user.group_id, recipe.slug)
+    assert fetched_recipe
+
+    # invalid users should default to the current user
+    assert str(fetched_recipe.user_id) == str(unique_user.user_id)
+
+
+def test_create_recipe_from_zip_existing_category(
+    database: AllRepositories, api_client: TestClient, unique_user: TestUser, tempdir: str
+):
+    categories = database.categories.by_group(unique_user.group_id).create_many(
+        [{"name": random_string(), "group_id": unique_user.group_id} for _ in range(random_int(5, 10))]
+    )
+    category = random.choice(categories)
+
+    recipe_name = random_string()
+    recipe = RecipeSummary(
+        id=uuid4(),
+        user_id=unique_user.user_id,
+        group_id=unique_user.group_id,
+        name=recipe_name,
+        slug=recipe_name,
+        recipe_category=[category],
+    )
+
+    r = api_client.post(
+        api_routes.recipes_create_from_zip, files=zip_recipe(tempdir, recipe), headers=unique_user.token
+    )
+    assert r.status_code == 201
+
+    fetched_recipe = database.recipes.get_by_slug(unique_user.group_id, recipe.slug)
+    assert fetched_recipe
+    assert fetched_recipe.recipe_category
+    assert len(fetched_recipe.recipe_category) == 1
+    assert str(fetched_recipe.recipe_category[0].id) == str(category.id)
+
+
+def test_create_recipe_from_zip_existing_tag(
+    database: AllRepositories, api_client: TestClient, unique_user: TestUser, tempdir: str
+):
+    tags = database.tags.by_group(unique_user.group_id).create_many(
+        [{"name": random_string(), "group_id": unique_user.group_id} for _ in range(random_int(5, 10))]
+    )
+    tag = random.choice(tags)
+
+    recipe_name = random_string()
+    recipe = RecipeSummary(
+        id=uuid4(),
+        user_id=unique_user.user_id,
+        group_id=unique_user.group_id,
+        name=recipe_name,
+        slug=recipe_name,
+        tags=[tag],
+    )
+
+    r = api_client.post(
+        api_routes.recipes_create_from_zip, files=zip_recipe(tempdir, recipe), headers=unique_user.token
+    )
+    assert r.status_code == 201
+
+    fetched_recipe = database.recipes.get_by_slug(unique_user.group_id, recipe.slug)
+    assert fetched_recipe
+    assert fetched_recipe.tags
+    assert len(fetched_recipe.tags) == 1
+    assert str(fetched_recipe.tags[0].id) == str(tag.id)
+
+
+def test_create_recipe_from_zip_existing_category_wrong_ids(
+    database: AllRepositories, api_client: TestClient, unique_user: TestUser, tempdir: str
+):
+    categories = database.categories.by_group(unique_user.group_id).create_many(
+        [{"name": random_string(), "group_id": unique_user.group_id} for _ in range(random_int(5, 10))]
+    )
+    category = random.choice(categories)
+    invalid_category = RecipeCategory(id=uuid4(), name=category.name, slug=category.slug)
+
+    recipe_name = random_string()
+    recipe = RecipeSummary(
+        id=uuid4(),
+        user_id=unique_user.user_id,
+        group_id=unique_user.group_id,
+        name=recipe_name,
+        slug=recipe_name,
+        recipe_category=[invalid_category],
+    )
+
+    r = api_client.post(
+        api_routes.recipes_create_from_zip, files=zip_recipe(tempdir, recipe), headers=unique_user.token
+    )
+    assert r.status_code == 201
+
+    fetched_recipe = database.recipes.get_by_slug(unique_user.group_id, recipe.slug)
+    assert fetched_recipe
+    assert fetched_recipe.recipe_category
+    assert len(fetched_recipe.recipe_category) == 1
+    assert str(fetched_recipe.recipe_category[0].id) == str(category.id)
+
+
+def test_create_recipe_from_zip_existing_tag_wrong_ids(
+    database: AllRepositories, api_client: TestClient, unique_user: TestUser, tempdir: str
+):
+    tags = database.tags.by_group(unique_user.group_id).create_many(
+        [{"name": random_string(), "group_id": unique_user.group_id} for _ in range(random_int(5, 10))]
+    )
+    tag = random.choice(tags)
+    invalid_tag = RecipeTag(id=uuid4(), name=tag.name, slug=tag.slug)
+
+    recipe_name = random_string()
+    recipe = RecipeSummary(
+        id=uuid4(),
+        user_id=unique_user.user_id,
+        group_id=unique_user.group_id,
+        name=recipe_name,
+        slug=recipe_name,
+        tags=[invalid_tag],
+    )
+
+    r = api_client.post(
+        api_routes.recipes_create_from_zip, files=zip_recipe(tempdir, recipe), headers=unique_user.token
+    )
+    assert r.status_code == 201
+
+    fetched_recipe = database.recipes.get_by_slug(unique_user.group_id, recipe.slug)
+    assert fetched_recipe
+    assert fetched_recipe.tags
+    assert len(fetched_recipe.tags) == 1
+    assert str(fetched_recipe.tags[0].id) == str(tag.id)
+
+
+def test_create_recipe_from_zip_invalid_category(
+    database: AllRepositories, api_client: TestClient, unique_user: TestUser, tempdir: str
+):
+    invalid_name = random_string()
+    invalid_category = RecipeCategory(id=uuid4(), name=invalid_name, slug=invalid_name)
+
+    recipe_name = random_string()
+    recipe = RecipeSummary(
+        id=uuid4(),
+        user_id=unique_user.user_id,
+        group_id=unique_user.group_id,
+        name=recipe_name,
+        slug=recipe_name,
+        recipe_category=[invalid_category],
+    )
+
+    r = api_client.post(
+        api_routes.recipes_create_from_zip, files=zip_recipe(tempdir, recipe), headers=unique_user.token
+    )
+    assert r.status_code == 201
+
+    fetched_recipe = database.recipes.get_by_slug(unique_user.group_id, recipe.slug)
+    assert fetched_recipe
+    assert fetched_recipe.recipe_category
+    assert len(fetched_recipe.recipe_category) == 1
+
+    # a new category should be created
+    assert fetched_recipe.recipe_category[0].name == invalid_name
+    assert fetched_recipe.recipe_category[0].slug == invalid_name
+
+
+def test_create_recipe_from_zip_invalid_tag(
+    database: AllRepositories, api_client: TestClient, unique_user: TestUser, tempdir: str
+):
+    invalid_name = random_string()
+    invalid_tag = RecipeTag(id=uuid4(), name=invalid_name, slug=invalid_name)
+
+    recipe_name = random_string()
+    recipe = RecipeSummary(
+        id=uuid4(),
+        user_id=unique_user.user_id,
+        group_id=unique_user.group_id,
+        name=recipe_name,
+        slug=recipe_name,
+        tags=[invalid_tag],
+    )
+
+    r = api_client.post(
+        api_routes.recipes_create_from_zip, files=zip_recipe(tempdir, recipe), headers=unique_user.token
+    )
+    assert r.status_code == 201
+
+    fetched_recipe = database.recipes.get_by_slug(unique_user.group_id, recipe.slug)
+    assert fetched_recipe
+    assert fetched_recipe.tags
+    assert len(fetched_recipe.tags) == 1
+
+    # a new tag should be created
+    assert fetched_recipe.tags[0].name == invalid_name
+    assert fetched_recipe.tags[0].slug == invalid_name
+
+
 @pytest.mark.parametrize("recipe_data", recipe_test_data)
 def test_read_update(
     api_client: TestClient,
@@ -188,7 +476,7 @@ def test_read_update(
     assert len(recipe["recipeCategory"]) == len(recipe_categories)
 
     test_name = [x.name for x in recipe_categories]
-    for cats in zip(recipe["recipeCategory"], recipe_categories):
+    for cats in zip(recipe["recipeCategory"], recipe_categories, strict=False):
         assert cats[0]["name"] in test_name
 
 
@@ -386,3 +674,55 @@ def test_delete_recipe_same_name(api_client: TestClient, unique_user: utils.Test
     response = api_client.get(api_routes.recipes_slug(slug), headers=unique_user.token)
     response = api_client.get(api_routes.recipes_slug(slug), headers=unique_user.token)
     assert response.status_code == 404
+
+
+def test_get_recipe_by_slug_or_id(api_client: TestClient, unique_user: utils.TestUser):
+    slugs = [random_string(10) for _ in range(3)]
+
+    # Create recipes
+    for slug in slugs:
+        response = api_client.post(api_routes.recipes, json={"name": slug}, headers=unique_user.token)
+        assert response.status_code == 201
+        assert json.loads(response.text) == slug
+
+    # Get recipes by slug
+    recipe_ids = []
+    for slug in slugs:
+        response = api_client.get(api_routes.recipes_slug(slug), headers=unique_user.token)
+        assert response.status_code == 200
+        recipe_data = response.json()
+        assert recipe_data["slug"] == slug
+        recipe_ids.append(recipe_data["id"])
+
+    # Get recipes by id
+    for recipe_id, slug in zip(recipe_ids, slugs, strict=True):
+        response = api_client.get(api_routes.recipes_slug(recipe_id), headers=unique_user.token)
+        assert response.status_code == 200
+        recipe_data = response.json()
+        assert recipe_data["slug"] == slug
+        assert recipe_data["id"] == recipe_id
+
+
+def test_get_random_order(api_client: TestClient, unique_user: utils.TestUser):
+    # Create more recipes for stable random ordering
+    slugs = [random_string(10) for _ in range(7)]
+    for slug in slugs:
+        response = api_client.post(api_routes.recipes, json={"name": slug}, headers=unique_user.token)
+        assert response.status_code == 201
+        assert json.loads(response.text) == slug
+
+    goodparams: dict[str, int | str] = {"page": 1, "perPage": -1, "orderBy": "random", "paginationSeed": "abcdefg"}
+    response = api_client.get(api_routes.recipes, params=goodparams, headers=unique_user.token)
+    assert response.status_code == 200
+
+    seed1_params: dict[str, int | str] = {"page": 1, "perPage": -1, "orderBy": "random", "paginationSeed": "abcdefg"}
+    seed2_params: dict[str, int | str] = {"page": 1, "perPage": -1, "orderBy": "random", "paginationSeed": "gfedcba"}
+    data1 = api_client.get(api_routes.recipes, params=seed1_params, headers=unique_user.token).json()
+    data2 = api_client.get(api_routes.recipes, params=seed2_params, headers=unique_user.token).json()
+    data1_new = api_client.get(api_routes.recipes, params=seed1_params, headers=unique_user.token).json()
+    assert data1["items"][0]["slug"] != data2["items"][0]["slug"]  # new seed -> new order
+    assert data1["items"][0]["slug"] == data1_new["items"][0]["slug"]  # same seed -> same order
+
+    badparams: dict[str, int | str] = {"page": 1, "perPage": -1, "orderBy": "random"}
+    response = api_client.get(api_routes.recipes, params=badparams, headers=unique_user.token)
+    assert response.status_code == 422

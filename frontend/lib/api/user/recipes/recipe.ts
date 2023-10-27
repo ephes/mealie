@@ -1,7 +1,7 @@
 import { BaseCRUDAPI } from "../../base/base-clients";
+import { route } from "../../base";
 import { CommentsApi } from "./recipe-comments";
 import { RecipeShareApi } from "./recipe-share";
-
 import {
   Recipe,
   CreateRecipe,
@@ -10,6 +10,7 @@ import {
   ParsedIngredient,
   UpdateImageResponse,
   RecipeZipTokenResponse,
+  RecipeLastMade,
   RecipeTimelineEventIn,
   RecipeTimelineEventOut,
   RecipeTimelineEventUpdate,
@@ -38,6 +39,7 @@ const routes = {
   recipesParseIngredient: `${prefix}/parser/ingredient`,
   recipesParseIngredients: `${prefix}/parser/ingredients`,
   recipesCreateFromOcr: `${prefix}/recipes/create-ocr`,
+  recipesTimelineEvent: `${prefix}/recipes/timeline/events`,
 
   recipesRecipeSlug: (recipe_slug: string) => `${prefix}/recipes/${recipe_slug}`,
   recipesRecipeSlugExport: (recipe_slug: string) => `${prefix}/recipes/${recipe_slug}/exports`,
@@ -48,8 +50,37 @@ const routes = {
   recipesSlugComments: (slug: string) => `${prefix}/recipes/${slug}/comments`,
   recipesSlugCommentsId: (slug: string, id: number) => `${prefix}/recipes/${slug}/comments/${id}`,
 
-  recipesSlugTimelineEvent: (slug: string) => `${prefix}/recipes/${slug}/timeline/events`,
-  recipesSlugTimelineEventId: (slug: string, id: string) => `${prefix}/recipes/${slug}/timeline/events/${id}`,
+  recipesSlugLastMade: (slug: string) => `${prefix}/recipes/${slug}/last-made`,
+  recipesTimelineEventId: (id: string) => `${prefix}/recipes/timeline/events/${id}`,
+  recipesTimelineEventIdImage: (id: string) => `${prefix}/recipes/timeline/events/${id}/image`,
+};
+
+export type RecipeSearchQuery = {
+  search: string;
+  orderDirection?: "asc" | "desc";
+  groupId?: string;
+
+  queryFilter?: string;
+
+  cookbook?: string;
+
+  categories?: string[];
+  requireAllCategories?: boolean;
+
+  tags?: string[];
+  requireAllTags?: boolean;
+
+  tools?: string[];
+  requireAllTools?: boolean;
+
+  foods?: string[];
+  requireAllFoods?: boolean;
+
+  page?: number;
+  perPage?: number;
+  orderBy?: string;
+
+  _searchSeed?: string;
 };
 
 export class RecipeAPI extends BaseCRUDAPI<CreateRecipe, Recipe, Recipe> {
@@ -64,6 +95,10 @@ export class RecipeAPI extends BaseCRUDAPI<CreateRecipe, Recipe, Recipe> {
 
     this.comments = new CommentsApi(requests);
     this.share = new RecipeShareApi(requests);
+  }
+
+  async search(rsq: RecipeSearchQuery) {
+    return await this.requests.get<PaginationData<Recipe>>(route(routes.recipesBase, rsq));
   }
 
   async getAllByCategory(categories: string[]) {
@@ -133,21 +168,39 @@ export class RecipeAPI extends BaseCRUDAPI<CreateRecipe, Recipe, Recipe> {
     return await this.requests.post(routes.recipesCreateFromOcr, formData);
   }
 
-  async createTimelineEvent(recipeSlug: string, payload: RecipeTimelineEventIn) {
-    return await this.requests.post<RecipeTimelineEventOut>(routes.recipesSlugTimelineEvent(recipeSlug), payload);
+  async updateLastMade(recipeSlug: string, timestamp: string) {
+    return await this.requests.patch<Recipe, RecipeLastMade>(routes.recipesSlugLastMade(recipeSlug), { timestamp })
   }
 
-  async updateTimelineEvent(recipeSlug: string, eventId: string, payload: RecipeTimelineEventUpdate) {
-    return await this.requests.put<RecipeTimelineEventOut, RecipeTimelineEventUpdate>(routes.recipesSlugTimelineEventId(recipeSlug, eventId), payload);
+  async createTimelineEvent(payload: RecipeTimelineEventIn) {
+    return await this.requests.post<RecipeTimelineEventOut>(routes.recipesTimelineEvent, payload);
   }
 
-  async deleteTimelineEvent(recipeSlug: string, eventId: string) {
-    return await this.requests.delete<RecipeTimelineEventOut>(routes.recipesSlugTimelineEventId(recipeSlug, eventId));
+  async updateTimelineEvent(eventId: string, payload: RecipeTimelineEventUpdate) {
+    return await this.requests.put<RecipeTimelineEventOut, RecipeTimelineEventUpdate>(
+      routes.recipesTimelineEventId(eventId),
+      payload
+    );
   }
 
-  async getAllTimelineEvents(recipeSlug: string, page = 1, perPage = -1, params = {} as any) {
-    return await this.requests.get<PaginationData<RecipeTimelineEventOut>>(routes.recipesSlugTimelineEvent(recipeSlug), {
-      params: { page, perPage, ...params },
-    });
+  async deleteTimelineEvent(eventId: string) {
+    return await this.requests.delete<RecipeTimelineEventOut>(routes.recipesTimelineEventId(eventId));
+  }
+
+  async getAllTimelineEvents(page = 1, perPage = -1, params = {} as any) {
+    return await this.requests.get<PaginationData<RecipeTimelineEventOut>>(
+      routes.recipesTimelineEvent,
+      {
+        params: { page, perPage, ...params },
+      }
+    );
+  }
+
+  async updateTimelineEventImage(eventId: string, fileObject: Blob | File, fileName: string) {
+    const formData = new FormData();
+    formData.append("image", fileObject);
+    formData.append("extension", fileName.split(".").pop() ?? "");
+
+    return await this.requests.put<UpdateImageResponse, FormData>(routes.recipesTimelineEventIdImage(eventId), formData);
   }
 }

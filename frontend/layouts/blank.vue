@@ -5,7 +5,7 @@
     <v-banner v-if="isDemo" sticky>
       <div class="text-center">
         <b> {{ $t("demo.info_message_with_version", { version: version }) }} </b> |
-        {{ $t("demo.demo_username", { username: "changeme@email.com" }) }} |
+        {{ $t("demo.demo_username", { username: "changeme@example.com" }) }} |
         {{ $t("demo.demo_password", { password: "demo" }) }}
       </div>
     </v-banner>
@@ -20,7 +20,7 @@
 
 <script lang="ts">
 import { computed, defineComponent, useContext } from "@nuxtjs/composition-api";
-import TheSnackbar from "~/components/Layout/TheSnackbar.vue";
+import TheSnackbar from "~/components/Layout/LayoutParts/TheSnackbar.vue";
 import { useAppInfo } from "~/composables/api";
 export default defineComponent({
   components: { TheSnackbar },

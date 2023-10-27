@@ -5,15 +5,20 @@ from uuid import UUID
 
 from pydantic import UUID4, Field, validator
 from pydantic.types import constr
-from pydantic.utils import GetterDict
+from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm.interfaces import LoaderOption
 
 from mealie.core.config import get_app_dirs, get_app_settings
 from mealie.db.models.users import User
+from mealie.db.models.users.users import AuthMethod
 from mealie.schema._mealie import MealieModel
 from mealie.schema.group.group_preferences import ReadGroupPreferences
 from mealie.schema.recipe import RecipeSummary
 from mealie.schema.response.pagination import PaginationBase
 
+from ...db.models.group import Group
+from ...db.models.recipe import RecipeModel
+from ..getter_dict import GroupGetterDict, UserGetterDict
 from ..recipe import CategoryBase
 
 DEFAULT_INTEGRATION_ID = "generic"
@@ -66,6 +71,7 @@ class UserBase(MealieModel):
     username: str | None
     full_name: str | None = None
     email: constr(to_lower=True, strip_whitespace=True)  # type: ignore
+    auth_method: AuthMethod = AuthMethod.MEALIE
     admin: bool = False
     group: str | None
     advanced: bool = False
@@ -77,19 +83,13 @@ class UserBase(MealieModel):
 
     class Config:
         orm_mode = True
-
-        @classmethod
-        def getter_dict(cls, name_orm: User):
-            return {
-                **GetterDict(name_orm),
-                "group": name_orm.group.name,
-            }
+        getter_dict = GroupGetterDict
 
         schema_extra = {
             "example": {
                 "username": "ChangeMe",
                 "fullName": "Change Me",
-                "email": "changeme@email.com",
+                "email": "changeme@example.com",
                 "group": settings.DEFAULT_GROUP,
                 "admin": "false",
             }
@@ -111,13 +111,15 @@ class UserOut(UserBase):
     class Config:
         orm_mode = True
 
-        @classmethod
-        def getter_dict(cls, ormModel: User):
-            return {
-                **GetterDict(ormModel),
-                "group": ormModel.group.name,
-                "favorite_recipes": [x.slug for x in ormModel.favorite_recipes],
-            }
+        getter_dict = UserGetterDict
+
+    @property
+    def is_default_user(self) -> bool:
+        return self.email == settings.DEFAULT_EMAIL.strip().lower()
+
+    @classmethod
+    def loader_options(cls) -> list[LoaderOption]:
+        return [joinedload(User.group), joinedload(User.favorite_recipes), joinedload(User.tokens)]
 
 
 class UserPagination(PaginationBase):
@@ -129,13 +131,16 @@ class UserFavorites(UserBase):
 
     class Config:
         orm_mode = True
+        getter_dict = GroupGetterDict
 
-        @classmethod
-        def getter_dict(cls, ormModel: User):
-            return {
-                **GetterDict(ormModel),
-                "group": ormModel.group.name,
-            }
+    @classmethod
+    def loader_options(cls) -> list[LoaderOption]:
+        return [
+            joinedload(User.group),
+            selectinload(User.favorite_recipes).joinedload(RecipeModel.recipe_category),
+            selectinload(User.favorite_recipes).joinedload(RecipeModel.tags),
+            selectinload(User.favorite_recipes).joinedload(RecipeModel.tools),
+        ]
 
 
 class PrivateUser(UserOut):
@@ -168,10 +173,15 @@ class PrivateUser(UserOut):
     def directory(self) -> Path:
         return PrivateUser.get_directory(self.id)
 
+    @classmethod
+    def loader_options(cls) -> list[LoaderOption]:
+        return [joinedload(User.group), selectinload(User.favorite_recipes), joinedload(User.tokens)]
+
 
 class UpdateGroup(GroupBase):
     id: UUID4
     name: str
+    slug: str
     categories: list[CategoryBase] | None = []
 
     webhooks: list[Any] = []
@@ -203,6 +213,17 @@ class GroupInDB(UpdateGroup):
     @property
     def exports(self) -> Path:
         return GroupInDB.get_export_directory(self.id)
+
+    @classmethod
+    def loader_options(cls) -> list[LoaderOption]:
+        return [
+            joinedload(Group.categories),
+            joinedload(Group.webhooks),
+            joinedload(Group.preferences),
+            selectinload(Group.users).joinedload(User.group),
+            selectinload(Group.users).joinedload(User.favorite_recipes),
+            selectinload(Group.users).joinedload(User.tokens),
+        ]
 
 
 class GroupPagination(PaginationBase):

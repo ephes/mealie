@@ -5,8 +5,20 @@
     "recipe": {
         "unique-name-error": "Rezeptnamen müssen einzigartig sein"
     },
+    "mealplan": {
+        "no-recipes-match-your-rules": "Keine Rezepte entsprechen deinen Regeln"
+    },
+    "user": {
+        "user-updated": "Benutzer aktualisiert",
+        "password-updated": "Passwort aktualisiert",
+        "invalid-current-password": "Aktuelles Passwort ungültig",
+        "ldap-update-password-unavailable": "Passwort konnte nicht aktualisiert werden, der Benutzer wird über LDAP verwaltet"
+    },
+    "group": {
+        "report-deleted": "Bericht gelöscht."
+    },
     "exceptions": {
-        "permission_denied": "Sie haben keine Berechtigung, um diese Aktion auszuführen",
+        "permission_denied": "Du hast keine Berechtigung, um diese Aktion auszuführen",
         "no-entry-found": "Die angeforderte Ressource wurde nicht gefunden",
         "integrity-error": "Datenbankintegritätsfehler",
         "username-conflict-error": "Dieser Benutzername ist bereits vergeben",

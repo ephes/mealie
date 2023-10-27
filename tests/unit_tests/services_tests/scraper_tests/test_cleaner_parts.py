@@ -73,22 +73,27 @@ image_cleaner_test_cases = (
     CleanerCase(
         test_id="empty_string",
         input="",
-        expected="no image",
+        expected=["no image"],
     ),
     CleanerCase(
         test_id="no_change",
         input="https://example.com/image.jpg",
-        expected="https://example.com/image.jpg",
+        expected=["https://example.com/image.jpg"],
     ),
     CleanerCase(
         test_id="dict with url key",
         input={"url": "https://example.com/image.jpg"},
-        expected="https://example.com/image.jpg",
+        expected=["https://example.com/image.jpg"],
     ),
     CleanerCase(
         test_id="list of strings",
         input=["https://example.com/image.jpg"],
-        expected="https://example.com/image.jpg",
+        expected=["https://example.com/image.jpg"],
+    ),
+    CleanerCase(
+        test_id="list of dicts with url key",
+        input=[{"url": "https://example.com/image.jpg"}],
+        expected=["https://example.com/image.jpg"],
     ),
 )
 
@@ -256,7 +261,6 @@ ingredients_test_cases = (
 
 @pytest.mark.parametrize("ingredients", ingredients_test_cases, ids=(x.test_id for x in ingredients_test_cases))
 def test_cleaner_clean_ingredients(ingredients: CleanerCase):
-
     if ingredients.exception:
         with pytest.raises(ingredients.exception):
             cleaner.clean_ingredients(ingredients.input)

@@ -37,7 +37,6 @@ class HttpRepo(Generic[C, R, U]):
         exception_msgs: Callable[[type[Exception]], str] | None = None,
         default_message: str | None = None,
     ) -> None:
-
         self.repo = repo
         self.logger = logger
         self.exception_msgs = exception_msgs
@@ -99,13 +98,21 @@ class HttpRepo(Generic[C, R, U]):
 
         return item
 
-    def patch_one(self, data: U, item_id: int | str | UUID4) -> None:
-        self.repo.get_one(item_id)
+    def patch_one(self, data: U, item_id: int | str | UUID4) -> R:
+        item = self.repo.get_one(item_id)
+
+        if not item:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse.respond(message="Not found."),
+            )
 
         try:
-            self.repo.patch(item_id, data.dict(exclude_unset=True, exclude_defaults=True))
+            item = self.repo.patch(item_id, data.dict(exclude_unset=True, exclude_defaults=True))
         except Exception as ex:
             self.handle_exception(ex)
+
+        return item
 
     def delete_one(self, item_id: int | str | UUID4) -> R | None:
         item: R | None = None

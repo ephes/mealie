@@ -12,9 +12,12 @@ from mealie.schema.reports.reports import ReportSummary
 from mealie.services.migrations import (
     BaseMigrator,
     ChowdownMigrator,
+    CopyMeThatMigrator,
     MealieAlphaMigrator,
     NextcloudMigrator,
     PaprikaMigrator,
+    PlanToEatMigrator,
+    TandoorMigrator,
 )
 
 router = UserAPIRouter(prefix="/groups/migrations", tags=["Group: Migrations"])
@@ -43,18 +46,21 @@ class GroupMigrationController(BaseUserController):
             "add_migration_tag": add_migration_tag,
         }
 
-        migrator: BaseMigrator
+        table: dict[SupportedMigrations, type[BaseMigrator]] = {
+            SupportedMigrations.chowdown: ChowdownMigrator,
+            SupportedMigrations.copymethat: CopyMeThatMigrator,
+            SupportedMigrations.mealie_alpha: MealieAlphaMigrator,
+            SupportedMigrations.nextcloud: NextcloudMigrator,
+            SupportedMigrations.paprika: PaprikaMigrator,
+            SupportedMigrations.tandoor: TandoorMigrator,
+            SupportedMigrations.plantoeat: PlanToEatMigrator,
+        }
 
-        match migration_type:  # noqa match not supported by ruff
-            case SupportedMigrations.chowdown:
-                migrator = ChowdownMigrator(**args)
-            case SupportedMigrations.mealie_alpha:
-                migrator = MealieAlphaMigrator(**args)
-            case SupportedMigrations.nextcloud:
-                migrator = NextcloudMigrator(**args)
-            case SupportedMigrations.paprika:
-                migrator = PaprikaMigrator(**args)
-            case _:
-                raise ValueError(f"Unsupported migration type: {migration_type}")
+        constructor = table.get(migration_type, None)
+
+        if constructor is None:
+            raise ValueError(f"Unsupported migration type: {migration_type}")
+
+        migrator = constructor(**args)
 
         return migrator.migrate(f"{migration_type.value.title()} Migration")

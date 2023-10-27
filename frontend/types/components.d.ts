@@ -18,8 +18,10 @@ import ButtonLink from "@/components/global/ButtonLink.vue";
 import ContextMenu from "@/components/global/ContextMenu.vue";
 import CrudTable from "@/components/global/CrudTable.vue";
 import DevDumpJson from "@/components/global/DevDumpJson.vue";
+import DocLink from "@/components/global/DocLink.vue";
 import DropZone from "@/components/global/DropZone.vue";
 import HelpIcon from "@/components/global/HelpIcon.vue";
+import ImageCropper from "@/components/global/ImageCropper.vue";
 import InputColor from "@/components/global/InputColor.vue";
 import InputLabelType from "@/components/global/InputLabelType.vue";
 import InputQuantity from "@/components/global/InputQuantity.vue";
@@ -30,10 +32,7 @@ import ReportTable from "@/components/global/ReportTable.vue";
 import SafeMarkdown from "@/components/global/SafeMarkdown.vue";
 import StatsCards from "@/components/global/StatsCards.vue";
 import ToggleState from "@/components/global/ToggleState.vue";
-import AppFooter from "@/components/layout/AppFooter.vue";
-import AppHeader from "@/components/layout/AppHeader.vue";
-import AppSidebar from "@/components/layout/AppSidebar.vue";
-import TheSnackbar from "@/components/layout/TheSnackbar.vue";
+import DefaultLayout from "@/components/layout/DefaultLayout.vue";
 
 declare module "vue" {
   export interface GlobalComponents {
@@ -57,8 +56,10 @@ declare module "vue" {
     ContextMenu: typeof ContextMenu;
     CrudTable: typeof CrudTable;
     DevDumpJson: typeof DevDumpJson;
+    DocLink: typeof DocLink;
     DropZone: typeof DropZone;
     HelpIcon: typeof HelpIcon;
+    ImageCropper: typeof ImageCropper;
     InputColor: typeof InputColor;
     InputLabelType: typeof InputLabelType;
     InputQuantity: typeof InputQuantity;
@@ -70,10 +71,7 @@ declare module "vue" {
     StatsCards: typeof StatsCards;
     ToggleState: typeof ToggleState;
     // Layout Components
-    AppFooter: typeof AppFooter;
-    AppHeader: typeof AppHeader;
-    AppSidebar: typeof AppSidebar;
-    TheSnackbar: typeof TheSnackbar;
+    DefaultLayout: typeof DefaultLayout;
   }
 }
 

@@ -30,7 +30,7 @@ class GroupMealplanController(BaseCrudController):
         registered = {
             **mealie_registered_exceptions(self.translator),
         }
-        return registered.get(ex, "An unexpected error occurred.")
+        return registered.get(ex, self.t("generic.server-error"))
 
     @cached_property
     def mixins(self):
@@ -83,11 +83,17 @@ class GroupMealplanController(BaseCrudController):
         try:
             recipe = random_recipes[0]
             return self.mixins.create_one(
-                SavePlanEntry(date=data.date, entry_type=data.entry_type, recipe_id=recipe.id, group_id=self.group_id)
+                SavePlanEntry(
+                    date=data.date,
+                    entry_type=data.entry_type,
+                    recipe_id=recipe.id,
+                    group_id=self.group_id,
+                    user_id=self.user.id,
+                )
             )
         except IndexError as e:
             raise HTTPException(
-                status_code=404, detail=ErrorResponse.respond(message="No recipes match your rules")
+                status_code=404, detail=ErrorResponse.respond(message=self.t("mealplan.no-recipes-match-your-rules"))
             ) from e
 
     @router.get("", response_model=PlanEntryPagination)
@@ -118,7 +124,7 @@ class GroupMealplanController(BaseCrudController):
 
     @router.post("", response_model=ReadPlanEntry, status_code=201)
     def create_one(self, data: CreatePlanEntry):
-        data = mapper.cast(data, SavePlanEntry, group_id=self.group.id)
+        data = mapper.cast(data, SavePlanEntry, group_id=self.group.id, user_id=self.user.id)
         result = self.mixins.create_one(data)
 
         self.publish_event(

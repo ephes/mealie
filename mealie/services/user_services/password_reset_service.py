@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm.session import Session
 
 from mealie.core.security import hash_password, url_safe_token
+from mealie.db.models.users.users import AuthMethod
 from mealie.repos.all_repositories import get_repositories
 from mealie.schema.user.user_passwords import SavePasswordResetToken
 from mealie.services._base_service import BaseService
@@ -20,6 +21,9 @@ class PasswordResetService(BaseService):
             self.logger.error(f"failed to create password reset for {email=}: user doesn't exists")
             # Do not raise exception here as we don't want to confirm to the client that the Email doesn't exists
             return None
+        elif user.password == "LDAP" or user.auth_method == AuthMethod.LDAP:
+            self.logger.error(f"failed to create password reset for {email=}: user controlled by LDAP")
+            return None
 
         # Create Reset Token
         token = url_safe_token()
@@ -36,7 +40,7 @@ class PasswordResetService(BaseService):
 
         # Send Email
         email_servive = EmailService()
-        reset_url = f"{self.settings.BASE_URL}/reset-password?token={token_entry.token}"
+        reset_url = f"{self.settings.BASE_URL}/reset-password/?token={token_entry.token}"
 
         try:
             email_servive.send_forgot_password(email, reset_url)

@@ -3,16 +3,21 @@ import { useFraction } from "./use-fraction";
 import { RecipeIngredient } from "~/lib/api/types/recipe";
 const { frac } = useFraction();
 
-function sanitizeIngredientHTML(rawHtml: string) {
+export function sanitizeIngredientHTML(rawHtml: string) {
   return DOMPurify.sanitize(rawHtml, {
     USE_PROFILES: { html: true },
     ALLOWED_TAGS: ["b", "q", "i", "strong", "sup"],
   });
 }
 
-export function parseIngredientText(ingredient: RecipeIngredient, disableAmount: boolean, scale = 1): string {
+export function useParsedIngredientText(ingredient: RecipeIngredient, disableAmount: boolean, scale = 1, includeFormating = true) {
   if (disableAmount) {
-    return ingredient.note || "";
+    return {
+      name: ingredient.note ? sanitizeIngredientHTML(ingredient.note) : undefined,
+      quantity: undefined,
+      unit: undefined,
+      note: undefined,
+    };
   }
 
   const { quantity, food, unit, note } = ingredient;
@@ -30,7 +35,9 @@ export function parseIngredientText(ingredient: RecipeIngredient, disableAmount:
       }
 
       if (fraction[1] > 0) {
-        returnQty += ` <sup>${fraction[1]}</sup>&frasl;<sub>${fraction[2]}</sub>`;
+        returnQty += includeFormating ?
+          ` <sup>${fraction[1]}</sup>&frasl;<sub>${fraction[2]}</sub>` :
+          ` ${fraction[1]}/${fraction[2]}`;
       }
     } else {
       returnQty = (quantity * scale).toString();
@@ -41,6 +48,17 @@ export function parseIngredientText(ingredient: RecipeIngredient, disableAmount:
     }
   }
 
-  const text = `${returnQty} ${unitDisplay || " "}  ${food?.name || " "} ${note || " "}`.replace(/ {2,}/g, " ");
+  return {
+    quantity: returnQty ? sanitizeIngredientHTML(returnQty) : undefined,
+    unit: unitDisplay ? sanitizeIngredientHTML(unitDisplay) : undefined,
+    name: food?.name ? sanitizeIngredientHTML(food.name) : undefined,
+    note: note ? sanitizeIngredientHTML(note) : undefined,
+  };
+}
+
+export function parseIngredientText(ingredient: RecipeIngredient, disableAmount: boolean, scale = 1, includeFormating = true): string {
+  const { quantity, unit, name, note } = useParsedIngredientText(ingredient, disableAmount, scale, includeFormating);
+
+  const text = `${quantity || ""} ${unit || ""} ${name || ""} ${note || ""}`.replace(/ {2,}/g, " ").trim();
   return sanitizeIngredientHTML(text);
 }

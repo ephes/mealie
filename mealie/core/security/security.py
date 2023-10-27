@@ -4,14 +4,18 @@ from pathlib import Path
 
 from jose import jwt
 
+from mealie.core import root_logger
 from mealie.core.config import get_app_settings
+from mealie.core.security import ldap
 from mealie.core.security.hasher import get_hasher
+from mealie.db.models.users.users import AuthMethod
 from mealie.repos.all_repositories import get_repositories
-from mealie.repos.repository_factory import AllRepositories
 from mealie.schema.user import PrivateUser
 from mealie.services.user_services.user_service import UserService
 
 ALGORITHM = "HS256"
+
+logger = root_logger.get_logger("security")
 
 
 class UserLockedOut(Exception):
@@ -40,74 +44,6 @@ def create_recipe_slug_token(file_path: str | Path) -> str:
     return create_access_token(token_data, expires_delta=timedelta(minutes=30))
 
 
-def user_from_ldap(db: AllRepositories, username: str, password: str) -> PrivateUser | bool:
-    """Given a username and password, tries to authenticate by BINDing to an
-    LDAP server
-
-    If the BIND succeeds, it will either create a new user of that username on
-    the server or return an existing one.
-    Returns False on failure.
-    """
-    import ldap
-
-    settings = get_app_settings()
-
-    if settings.LDAP_TLS_INSECURE:
-        ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
-    ldap.set_option(ldap.OPT_REFERRALS, 0)
-    ldap.set_option(ldap.OPT_PROTOCOL_VERSION, 3)
-    conn = ldap.initialize(settings.LDAP_SERVER_URL)
-
-    if settings.LDAP_TLS_CACERTFILE:
-        conn.set_option(ldap.OPT_X_TLS_CACERTFILE, settings.LDAP_TLS_CACERTFILE)
-        conn.set_option(ldap.OPT_X_TLS_NEWCTX, 0)
-    user = db.users.get_one(username, "email", any_case=True)
-
-    if not settings.LDAP_BIND_TEMPLATE:
-        return False
-
-    if not user:
-        user_bind = settings.LDAP_BIND_TEMPLATE.format(username)
-        user = db.users.get_one(username, "username", any_case=True)
-    else:
-        user_bind = settings.LDAP_BIND_TEMPLATE.format(user.username)
-
-    try:
-        conn.simple_bind_s(user_bind, password)
-    except (ldap.INVALID_CREDENTIALS, ldap.NO_SUCH_OBJECT):
-        return False
-
-    # Search "username" against "cn" attribute for Linux, "sAMAccountName" attribute
-    # for Windows and "mail" attribute for email addresses. The "mail" attribute is
-    # required to obtain the user's DN for the LDAP_ADMIN_FILTER.
-    user_entry = conn.search_s(
-        settings.LDAP_BASE_DN,
-        ldap.SCOPE_SUBTREE,
-        f"(&(objectClass=user)(|(cn={username})(sAMAccountName={username})(mail={username})))",
-        ["name", "mail"],
-    )
-    if user_entry is not None and len(user_entry[0]) != 0 and user_entry[0][0] is not None:
-        user_dn, user_attr = user_entry[0]
-    else:
-        return False
-
-    if user is None:
-        user = db.users.create(
-            {
-                "username": username,
-                "password": "LDAP",
-                "full_name": user_attr["name"][0],
-                "email": user_attr["mail"][0],
-                "admin": False,
-            },
-        )
-
-    if settings.LDAP_ADMIN_FILTER:
-        user.admin = len(conn.search_s(user_dn, ldap.SCOPE_BASE, settings.LDAP_ADMIN_FILTER, [])) > 0
-        db.users.update(user.id, user)
-    return user
-
-
 def authenticate_user(session, email: str, password: str) -> PrivateUser | bool:
     settings = get_app_settings()
 
@@ -116,8 +52,8 @@ def authenticate_user(session, email: str, password: str) -> PrivateUser | bool:
 
     if not user:
         user = db.users.get_one(email, "username", any_case=True)
-    if settings.LDAP_AUTH_ENABLED and (not user or user.password == "LDAP"):
-        return user_from_ldap(db, email, password)
+    if settings.LDAP_AUTH_ENABLED and (not user or user.password == "LDAP" or user.auth_method == AuthMethod.LDAP):
+        return ldap.get_user(db, email, password)
     if not user:
         # To prevent user enumeration we perform the verify_password computation to ensure
         # server side time is relatively constant and not vulnerable to timing attacks.
@@ -136,7 +72,9 @@ def authenticate_user(session, email: str, password: str) -> PrivateUser | bool:
             user_service.lock_user(user)
 
         return False
-    return user
+
+    user.login_attemps = 0
+    return db.users.update(user.id, user)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

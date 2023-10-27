@@ -1,23 +1,35 @@
 {
     "generic": {
-        "server-error": "An unexpected error occurred"
+        "server-error": "Произошла непредвиденная ошибка"
     },
     "recipe": {
-        "unique-name-error": "Recipe names must be unique"
+        "unique-name-error": "Название рецепта должно быть уникальным"
+    },
+    "mealplan": {
+        "no-recipes-match-your-rules": "Нет рецептов, соответствующих вашим правилам"
+    },
+    "user": {
+        "user-updated": "Пользователь обновлен",
+        "password-updated": "Пароль обновлен",
+        "invalid-current-password": "Неправильно введён текущий пароль",
+        "ldap-update-password-unavailable": "Не удается обновить пароль, пользователь контролируется LDAP"
+    },
+    "group": {
+        "report-deleted": "Отчет удален."
     },
     "exceptions": {
-        "permission_denied": "You do not have permission to perform this action",
-        "no-entry-found": "The requested resource was not found",
-        "integrity-error": "Database integrity error",
-        "username-conflict-error": "This username is already taken",
-        "email-conflict-error": "This email is already in use"
+        "permission_denied": "У вас нет прав для выполнения этого действия",
+        "no-entry-found": "Запрашиваемый ресурс не найден",
+        "integrity-error": "Ошибка целостности базы данных",
+        "username-conflict-error": "Это имя пользователя уже занято",
+        "email-conflict-error": "Этот адрес эл. почты уже используется"
     },
     "notifications": {
-        "generic-created": "{name} was created",
-        "generic-updated": "{name} was updated",
-        "generic-created-with-url": "{name} has been created, {url}",
-        "generic-updated-with-url": "{name} has been updated, {url}",
-        "generic-duplicated": "{name} has been duplicated",
-        "generic-deleted": "{name} has been deleted"
+        "generic-created": "{name} был создан",
+        "generic-updated": "{name} был обновлён",
+        "generic-created-with-url": "{name} был создан, {url}",
+        "generic-updated-with-url": "{name} был обновлен, {url}",
+        "generic-duplicated": "Копия {name} была создана",
+        "generic-deleted": "{name} был удален"
     }
 }

@@ -12,6 +12,7 @@ docs/site/
 frontend/dist/
 
 dev/code-generation/generated/*
+dev/data/mealie.db-journal
 dev/data/backups/*
 dev/data/debug/*
 dev/data/img/*
@@ -86,6 +87,7 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+.ruff_cache/
 test.db
 
 # Translations
@@ -167,3 +169,5 @@ dev/data/postgres/
 
 # notebooks
 notebooks/*.json
+
+.run/

@@ -1,8 +1,5 @@
 module.exports = {
   root: true,
-  settings: {
-    "import/ignore": ["@vueuse*"],
-  },
   env: {
     browser: true,
     node: true,
@@ -26,7 +23,7 @@ module.exports = {
   ],
   // Re-add once we use nuxt bridge
   // See https://v3.nuxtjs.org/getting-started/bridge#update-nuxtconfig
-  ignorePatterns: ["nuxt.config.js"],
+  ignorePatterns: ["nuxt.config.js", "lib/api/types/**/*.ts"],
   plugins: ["prettier"],
   // add your custom rules here
   rules: {
@@ -58,6 +55,15 @@ module.exports = {
     ],
 
     // TODO Gradually activate all rules
+    // Allow Promise in onMounted
+    "@typescript-eslint/no-misused-promises": [
+      "error",
+      {
+        checksVoidReturn: {
+          arguments: false,
+        },
+      },
+    ],
     "@typescript-eslint/no-unsafe-assignment": "off",
     "@typescript-eslint/no-unsafe-member-access": "off",
     "@typescript-eslint/explicit-module-boundary-types": "off",

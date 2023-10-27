@@ -3,7 +3,7 @@ from typing import Any, Generic, TypeVar
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 from humps import camelize
-from pydantic import BaseModel
+from pydantic import UUID4, BaseModel, validator
 from pydantic.generics import GenericModel
 
 from mealie.schema._mealie import MealieModel
@@ -16,12 +16,35 @@ class OrderDirection(str, enum.Enum):
     desc = "desc"
 
 
+class OrderByNullPosition(str, enum.Enum):
+    first = "first"
+    last = "last"
+
+
+class RecipeSearchQuery(MealieModel):
+    cookbook: UUID4 | str | None
+    require_all_categories: bool = False
+    require_all_tags: bool = False
+    require_all_tools: bool = False
+    require_all_foods: bool = False
+    search: str | None
+    _search_seed: str | None = None
+
+
 class PaginationQuery(MealieModel):
     page: int = 1
     per_page: int = 50
-    order_by: str = "created_at"
+    order_by: str | None = None
+    order_by_null_position: OrderByNullPosition | None = None
     order_direction: OrderDirection = OrderDirection.desc
     query_filter: str | None = None
+    pagination_seed: str | None = None
+
+    @validator("pagination_seed", always=True, pre=True)
+    def validate_randseed(cls, pagination_seed, values):
+        if values.get("order_by") == "random" and not pagination_seed:
+            raise ValueError("paginationSeed is required when orderBy is random")
+        return pagination_seed
 
 
 class PaginationBase(GenericModel, Generic[DataT]):

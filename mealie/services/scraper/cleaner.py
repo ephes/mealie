@@ -47,9 +47,11 @@ def clean(recipe_data: dict, url=None) -> dict:
     recipe_data["recipeYield"] = clean_yield(recipe_data.get("recipeYield"))
     recipe_data["recipeIngredient"] = clean_ingredients(recipe_data.get("recipeIngredient", []))
     recipe_data["recipeInstructions"] = clean_instructions(recipe_data.get("recipeInstructions", []))
-    recipe_data["image"] = clean_image(recipe_data.get("image"))
+    recipe_data["image"] = clean_image(recipe_data.get("image"))[0]
     recipe_data["slug"] = slugify(recipe_data.get("name", ""))
-    recipe_data["orgURL"] = url
+    recipe_data["orgURL"] = url or recipe_data.get("orgURL")
+    recipe_data["notes"] = clean_notes(recipe_data.get("notes"))
+    recipe_data["rating"] = clean_int(recipe_data.get("rating"))
 
     return recipe_data
 
@@ -77,31 +79,34 @@ def clean_string(text: str | list | int) -> str:
     return cleaned_text
 
 
-def clean_image(image: str | list | dict | None = None, default="no image") -> str:
+def clean_image(image: str | list | dict | None = None, default: str = "no image") -> list[str]:
     """
     image attempts to parse the image field from a recipe and return a string. Currenty
 
     Supported Structures:
-        - `["https://exmaple.com"]` - A list of strings
         - `https://exmaple.com` - A string
-        - `{ "url": "https://exmaple.com"` - A dictionary with a `url` key
+        - `{ "url": "https://exmaple.com" }` - A dictionary with a `url` key
+        - `["https://exmaple.com"]` - A list of strings
+        - `[{ "url": "https://exmaple.com" }]` - A list of dictionaries with a `url` key
 
     Raises:
         TypeError: If the image field is not a supported type a TypeError is raised.
 
     Returns:
-        str: "no image" if any empty string is provided or the url of the image
+        list[str]: list of urls, or [default] if input is empty
     """
     if not image:
-        return default
+        return [default]
 
-    match image:  # noqa - match statement not supported
+    match image:
         case str(image):
-            return image
-        case list(image):
-            return image[0]
+            return [image]
+        case [str(_), *_]:
+            return [x for x in image if x]  # Only return non-null strings in list
+        case [{"url": str(_)}, *_]:
+            return [x["url"] for x in image]
         case {"url": str(image)}:
-            return image
+            return [image]
         case _:
             raise TypeError(f"Unexpected type for image: {type(image)}, {image}")
 
@@ -229,7 +234,7 @@ def _sanitize_instruction_text(line: str | dict) -> str:
     return clean_line
 
 
-def clean_ingredients(ingredients: list | str | None, default: list | None = None) -> list[str]:
+def clean_ingredients(ingredients: list | str | None, default: list | None = None) -> list[str | dict]:
     """
     ingredient attempts to parse the ingredients field from a recipe and return a list of
 
@@ -245,11 +250,61 @@ def clean_ingredients(ingredients: list | str | None, default: list | None = Non
         case None:
             return default or []
         case list(ingredients):
+            cleaned_ingredients: list[str | dict] = []
+            for ing in ingredients:
+                if isinstance(ing, dict):
+                    cleaned_ingredients.append({clean_string(k): clean_string(v) for k, v in ing.items()})
+                else:
+                    cleaned_ingredients.append(clean_string(ing))
+            return cleaned_ingredients
+        case [str()]:
             return [clean_string(ingredient) for ingredient in ingredients]
         case str(ingredients):
-            return [clean_string(ingredient) for ingredient in ingredients.splitlines()]
+            return [clean_string(ingredient) for ingredient in ingredients.splitlines() if ingredient.strip()]
         case _:
             raise TypeError(f"Unexpected type for ingredients: {type(ingredients)}, {ingredients}")
+
+
+def clean_int(val: str | int | None, min: int | None = None, max: int | None = None):
+    if val is None or isinstance(val, int):
+        return val
+
+    filtered_val = "".join(c for c in val if c.isnumeric())
+    if not filtered_val:
+        return None
+
+    val = int(filtered_val)
+    if min is None or max is None:
+        return val
+
+    if not (min <= val <= max):
+        return None
+
+    return val
+
+
+def clean_notes(notes: typing.Any) -> list[dict] | None:
+    if not isinstance(notes, list):
+        return None
+
+    parsed_notes: list[dict] = []
+    for note in notes:
+        if not isinstance(note, str | dict):
+            continue
+
+        if isinstance(note, dict):
+            if "text" not in note:
+                continue
+
+            if "title" not in note:
+                note["title"] = ""
+
+            parsed_notes.append(note)
+            continue
+
+        parsed_notes.append({"title": "", "text": note})
+
+    return parsed_notes
 
 
 def clean_yield(yld: str | list[str] | None) -> str:

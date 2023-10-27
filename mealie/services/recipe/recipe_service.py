@@ -3,7 +3,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from shutil import copytree, rmtree
-from uuid import uuid4
+from typing import Any
+from uuid import UUID, uuid4
 from zipfile import ZipFile
 
 from fastapi import UploadFile
@@ -12,6 +13,7 @@ from slugify import slugify
 from mealie.core import exceptions
 from mealie.pkgs import cache
 from mealie.repos.repository_factory import AllRepositories
+from mealie.repos.repository_generic import RepositoryGeneric
 from mealie.schema.recipe.recipe import CreateRecipe, Recipe
 from mealie.schema.recipe.recipe_ingredient import RecipeIngredient
 from mealie.schema.recipe.recipe_settings import RecipeSettings
@@ -42,8 +44,8 @@ class RecipeService(BaseService):
         self.group = group
         super().__init__()
 
-    def _get_recipe(self, slug: str) -> Recipe:
-        recipe = self.repos.recipes.by_group(self.group.id).get_one(slug)
+    def _get_recipe(self, data: str | UUID, key: str | None = None) -> Recipe:
+        recipe = self.repos.recipes.by_group(self.group.id).get_one(data, key)
         if recipe is None:
             raise exceptions.NoEntryFound("Recipe not found.")
         return recipe
@@ -63,7 +65,7 @@ class RecipeService(BaseService):
 
             try:
                 copytree(current_dir, recipe.directory, dirs_exist_ok=True)
-                self.logger.info(f"Renaming Recipe Directory: {original_slug} -> {recipe.slug}")
+                self.logger.debug(f"Renaming Recipe Directory: {original_slug} -> {recipe.slug}")
             except FileNotFoundError:
                 self.logger.error(f"Recipe Directory not Found: {original_slug}")
 
@@ -107,8 +109,20 @@ class RecipeService(BaseService):
 
         return Recipe(**additional_attrs)
 
-    def create_one(self, create_data: Recipe | CreateRecipe) -> Recipe:
+    def get_one_by_slug_or_id(self, slug_or_id: str | UUID) -> Recipe | None:
+        if isinstance(slug_or_id, str):
+            try:
+                slug_or_id = UUID(slug_or_id)
+            except ValueError:
+                pass
 
+        if isinstance(slug_or_id, UUID):
+            return self._get_recipe(slug_or_id, "id")
+
+        else:
+            return self._get_recipe(slug_or_id, "slug")
+
+    def create_one(self, create_data: Recipe | CreateRecipe) -> Recipe:
         if create_data.name is None:
             create_data.name = "New Recipe"
 
@@ -145,6 +159,60 @@ class RecipeService(BaseService):
         self.repos.recipe_timeline_events.create(timeline_event_data)
         return new_recipe
 
+    def _transform_user_id(self, user_id: str) -> str:
+        query = self.repos.users.by_group(self.group.id).get_one(user_id)
+        if query:
+            return user_id
+        else:
+            # default to the current user
+            return str(self.user.id)
+
+    def _transform_category_or_tag(self, data: dict, repo: RepositoryGeneric) -> dict:
+        slug = data.get("slug")
+        if not slug:
+            return data
+
+        # if the item exists, return the actual data
+        query = repo.get_one(slug, "slug")
+        if query:
+            return query.dict()
+
+        # otherwise, create the item
+        new_item = repo.create(data)
+        return new_item.dict()
+
+    def _process_recipe_data(self, key: str, data: list | dict | Any):
+        if isinstance(data, list):
+            return [self._process_recipe_data(key, item) for item in data]
+
+        elif isinstance(data, str):
+            # make sure the user is valid
+            if key == "user_id":
+                return self._transform_user_id(str(data))
+
+            return data
+
+        elif not isinstance(data, dict):
+            return data
+
+        # force group_id to match the group id of the current user
+        data["group_id"] = str(self.group.id)
+
+        # make sure categories and tags are valid
+        if key == "recipe_category":
+            return self._transform_category_or_tag(data, self.repos.categories.by_group(self.group.id))
+        elif key == "tags":
+            return self._transform_category_or_tag(data, self.repos.tags.by_group(self.group.id))
+
+        # recursively process other objects
+        for k, v in data.items():
+            data[k] = self._process_recipe_data(k, v)
+
+        return data
+
+    def clean_recipe_dict(self, recipe: dict[str, Any]) -> dict[str, Any]:
+        return self._process_recipe_data("recipe", recipe)
+
     def create_from_zip(self, archive: UploadFile, temp_path: Path) -> Recipe:
         """
         `create_from_zip` creates a recipe in the database from a zip file exported from Mealie. This is NOT
@@ -168,7 +236,7 @@ class RecipeService(BaseService):
         if recipe_dict is None:
             raise exceptions.UnexpectedNone("No json data found in Zip")
 
-        recipe = self.create_one(Recipe(**recipe_dict))
+        recipe = self.create_one(Recipe(**self.clean_recipe_dict(recipe_dict)))
 
         if recipe and recipe.id:
             data_service = RecipeDataService(recipe.id)
@@ -248,6 +316,7 @@ class RecipeService(BaseService):
 
         Args:
             slug (str): recipe slug
+            new_data (Recipe): the new recipe data
 
         Raises:
             exceptions.PermissionDenied (403)
@@ -276,7 +345,7 @@ class RecipeService(BaseService):
 
     def patch_one(self, slug: str, patch_data: Recipe) -> Recipe:
         recipe: Recipe | None = self._pre_update_check(slug, patch_data)
-        recipe = self.repos.recipes.by_group(self.group.id).get_one(slug)
+        recipe = self._get_recipe(slug)
 
         if recipe is None:
             raise exceptions.NoEntryFound("Recipe not found.")
@@ -285,6 +354,11 @@ class RecipeService(BaseService):
 
         self.check_assets(new_data, recipe.slug)
         return new_data
+
+    def update_last_made(self, slug: str, timestamp: datetime) -> Recipe:
+        # we bypass the pre update check since any user can update a recipe's last made date, even if it's locked
+        recipe = self._get_recipe(slug)
+        return self.repos.recipes.by_group(self.group.id).patch(recipe.slug, {"last_made": timestamp})
 
     def delete_one(self, slug) -> Recipe:
         recipe = self._get_recipe(slug)

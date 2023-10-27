@@ -5,6 +5,8 @@
 /* Do not modify it by hand - just update the pydantic models and then re-run the script
 */
 
+export type AuthMethod = "Mealie" | "LDAP";
+
 export interface ChangePassword {
   currentPassword: string;
   newPassword: string;
@@ -39,6 +41,7 @@ export interface GroupBase {
 export interface GroupInDB {
   name: string;
   id: string;
+  slug: string;
   categories?: CategoryBase[];
   webhooks?: unknown[];
   users?: UserOut[];
@@ -53,6 +56,7 @@ export interface UserOut {
   username?: string;
   fullName?: string;
   email: string;
+  authMethod?: AuthMethod & string;
   admin?: boolean;
   group: string;
   advanced?: boolean;
@@ -69,6 +73,7 @@ export interface LongLiveTokenOut {
   token: string;
   name: string;
   id: number;
+  createdAt?: string;
 }
 export interface ReadGroupPreferences {
   privateGroup?: boolean;
@@ -98,6 +103,7 @@ export interface PrivateUser {
   username?: string;
   fullName?: string;
   email: string;
+  authMethod?: AuthMethod & string;
   admin?: boolean;
   group: string;
   advanced?: boolean;
@@ -112,6 +118,9 @@ export interface PrivateUser {
   password: string;
   loginAttemps?: number;
   lockedAt?: string;
+}
+export interface PasswordResetToken {
+  token: string;
 }
 export interface PrivatePasswordResetToken {
   userId: string;
@@ -142,6 +151,7 @@ export interface UnlockResults {
 export interface UpdateGroup {
   name: string;
   id: string;
+  slug: string;
   categories?: CategoryBase[];
   webhooks?: unknown[];
 }
@@ -149,6 +159,7 @@ export interface UserBase {
   username?: string;
   fullName?: string;
   email: string;
+  authMethod?: AuthMethod & string;
   admin?: boolean;
   group?: string;
   advanced?: boolean;
@@ -161,6 +172,7 @@ export interface UserFavorites {
   username?: string;
   fullName?: string;
   email: string;
+  authMethod?: AuthMethod & string;
   admin?: boolean;
   group?: string;
   advanced?: boolean;
@@ -187,7 +199,6 @@ export interface RecipeSummary {
   tools?: RecipeTool[];
   rating?: number;
   orgURL?: string;
-  recipeIngredient?: RecipeIngredient[];
   dateAdded?: string;
   dateUpdated?: string;
   createdAt?: string;
@@ -210,69 +221,11 @@ export interface RecipeTool {
   slug: string;
   onHand?: boolean;
 }
-export interface RecipeIngredient {
-  title?: string;
-  note?: string;
-  unit?: IngredientUnit | CreateIngredientUnit;
-  food?: IngredientFood | CreateIngredientFood;
-  disableAmount?: boolean;
-  quantity?: number;
-  originalText?: string;
-  referenceId?: string;
-}
-export interface IngredientUnit {
-  name: string;
-  description?: string;
-  extras?: {
-    [k: string]: unknown;
-  };
-  fraction?: boolean;
-  abbreviation?: string;
-  useAbbreviation?: boolean;
-  id: string;
-  createdAt?: string;
-  updateAt?: string;
-}
-export interface CreateIngredientUnit {
-  name: string;
-  description?: string;
-  extras?: {
-    [k: string]: unknown;
-  };
-  fraction?: boolean;
-  abbreviation?: string;
-  useAbbreviation?: boolean;
-}
-export interface IngredientFood {
-  name: string;
-  description?: string;
-  extras?: {
-    [k: string]: unknown;
-  };
-  labelId?: string;
-  id: string;
-  label?: MultiPurposeLabelSummary;
-  createdAt?: string;
-  updateAt?: string;
-}
-export interface MultiPurposeLabelSummary {
-  name: string;
-  color?: string;
-  groupId: string;
-  id: string;
-}
-export interface CreateIngredientFood {
-  name: string;
-  description?: string;
-  extras?: {
-    [k: string]: unknown;
-  };
-  labelId?: string;
-}
 export interface UserIn {
   username?: string;
   fullName?: string;
   email: string;
+  authMethod?: AuthMethod & string;
   admin?: boolean;
   group?: string;
   advanced?: boolean;

@@ -26,11 +26,12 @@
       </TransitionGroup>
     </draggable>
     <v-skeleton-loader v-else boilerplate elevation="2" type="list-item"> </v-skeleton-loader>
-    <div class="d-flex justify-end mt-2">
+    <div class="d-flex flex-wrap justify-center justify-sm-end mt-2">
       <v-tooltip top color="accent">
         <template #activator="{ on, attrs }">
           <span v-on="on">
             <BaseButton
+              class="mb-1"
               :disabled="recipe.settings.disableAmount || hasFoodOrUnit"
               color="accent"
               :to="`${recipe.slug}/ingredient-parser`"
@@ -39,21 +40,21 @@
               <template #icon>
                 {{ $globals.icons.foods }}
               </template>
-              Parse
+              {{ $t('recipe.parse') }}
             </BaseButton>
           </span>
         </template>
         <span>{{ parserToolTip }}</span>
       </v-tooltip>
-      <RecipeDialogBulkAdd class="ml-1 mr-1" @bulk-data="addIngredient" />
-      <BaseButton @click="addIngredient"> {{ $t("general.new") }} </BaseButton>
+      <RecipeDialogBulkAdd class="mx-1 mb-1" @bulk-data="addIngredient" />
+      <BaseButton class="mb-1" @click="addIngredient" > {{ $t("general.new") }} </BaseButton>
     </div>
   </div>
 </template>
 
 <script lang="ts">
 import draggable from "vuedraggable";
-import { computed, defineComponent, ref } from "@nuxtjs/composition-api";
+import { computed, defineComponent, ref, useContext } from "@nuxtjs/composition-api";
 import { usePageState, usePageUser } from "~/composables/recipe-page/shared-state";
 import { NoUndefinedField } from "~/lib/api/types/non-generated";
 import { Recipe } from "~/lib/api/types/recipe";
@@ -75,6 +76,7 @@ export default defineComponent({
   setup(props) {
     const { user } = usePageUser();
     const { imageKey } = usePageState(props.recipe.slug);
+    const { i18n } = useContext();
 
     const drag = ref(false);
 
@@ -95,11 +97,11 @@ export default defineComponent({
 
     const parserToolTip = computed(() => {
       if (props.recipe.settings.disableAmount) {
-        return "Enable ingredient amounts to use this feature";
+        return i18n.t("recipe.enable-ingredient-amounts-to-use-this-feature");
       } else if (hasFoodOrUnit.value) {
-        return "Recipes with units or foods defined cannot be parsed.";
+        return i18n.t("recipe.recipes-with-units-or-foods-defined-cannot-be-parsed");
       }
-      return "Parse ingredients";
+      return i18n.t("recipe.parse-ingredients");
     });
 
     function addIngredient(ingredients: Array<string> | null = null) {

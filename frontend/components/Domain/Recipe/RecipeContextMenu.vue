@@ -2,6 +2,7 @@
   <div class="text-center">
     <!-- Recipe Share Dialog -->
     <RecipeDialogShare v-model="shareDialog" :recipe-id="recipeId" :name="name" />
+    <RecipeDialogPrintPreferences v-model="printPreferencesDialog" :recipe="recipeRef" />
     <BaseDialog
       v-model="recipeDeleteDialog"
       :title="$t('recipe.delete-recipe')"
@@ -57,7 +58,6 @@
               readonly
               v-on="on"
             ></v-text-field>
-
           </template>
           <v-date-picker v-model="newMealdate" no-title @input="pickerMenu = false"></v-date-picker>
         </v-menu>
@@ -76,13 +76,69 @@
           :key="list.id"
           hover
           class="my-2 left-border"
-          @click="addRecipeToList(list.id)"
+          @click="openShoppingListIngredientDialog(list)"
         >
           <v-card-title class="py-2">
             {{ list.name }}
           </v-card-title>
         </v-card>
       </v-card-text>
+    </BaseDialog>
+    <BaseDialog
+      v-model="shoppingListIngredientDialog"
+      :title="selectedShoppingList ? selectedShoppingList.name : $t('recipe.add-to-list')"
+      :icon="$globals.icons.cartCheck"
+      width="70%"
+      :submit-text="$tc('recipe.add-to-list')"
+      @submit="addRecipeToList()"
+    >
+      <v-card
+        elevation="0"
+        height="fit-content"
+        max-height="60vh"
+        width="100%"
+        :class="$vuetify.breakpoint.smAndDown ? '' : 'ingredient-grid'"
+        :style="$vuetify.breakpoint.smAndDown ? '' : { gridTemplateRows: `repeat(${Math.ceil(recipeIngredients.length / 2)}, min-content)` }"
+        style="overflow-y: auto"
+      >
+        <v-list-item
+          v-for="(ingredientData, i) in recipeIngredients"
+          :key="'ingredient' + i"
+          dense
+          @click="recipeIngredients[i].checked = !recipeIngredients[i].checked"
+        >
+          <v-checkbox
+            hide-details
+            :input-value="ingredientData.checked"
+            class="pt-0 my-auto py-auto"
+            color="secondary"
+          />
+          <v-list-item-content :key="ingredientData.ingredient.quantity">
+            <RecipeIngredientListItem
+              :ingredient="ingredientData.ingredient"
+              :disable-amount="ingredientData.disableAmount"
+              :scale="recipeScale" />
+          </v-list-item-content>
+        </v-list-item>
+      </v-card>
+      <div class="d-flex justify-end mb-4 mt-2">
+        <BaseButtonGroup
+          :buttons="[
+            {
+              icon: $globals.icons.checkboxBlankOutline,
+              text: $tc('shopping-list.uncheck-all-items'),
+              event: 'uncheck',
+            },
+            {
+              icon: $globals.icons.checkboxOutline,
+              text: $tc('shopping-list.check-all-items'),
+              event: 'check',
+            },
+          ]"
+          @uncheck="bulkCheckIngredients(false)"
+          @check="bulkCheckIngredients(true)"
+        />
+      </div>
     </BaseDialog>
     <v-menu
       offset-y
@@ -93,7 +149,7 @@
       :nudge-top="menuTop ? '5' : '0'"
       allow-overflow
       close-delay="125"
-      open-on-hover
+      :open-on-hover="$vuetify.breakpoint.mdAndUp"
       content-class="d-print-none"
     >
       <template #activator="{ on, attrs }">
@@ -114,11 +170,14 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, reactive, toRefs, useContext, useRouter, ref } from "@nuxtjs/composition-api";
+import { computed, defineComponent, reactive, toRefs, useContext, useRouter, ref } from "@nuxtjs/composition-api";
+import RecipeIngredientListItem from "./RecipeIngredientListItem.vue";
+import RecipeDialogPrintPreferences from "./RecipeDialogPrintPreferences.vue";
 import RecipeDialogShare from "./RecipeDialogShare.vue";
 import { useUserApi } from "~/composables/api";
 import { alert } from "~/composables/use-toast";
-import { planTypeOptions } from "~/composables/use-group-mealplan";
+import { usePlanTypeOptions } from "~/composables/use-group-mealplan";
+import { Recipe, RecipeIngredient } from "~/lib/api/types/recipe";
 import { ShoppingListSummary } from "~/lib/api/types/group";
 import { PlanEntryType } from "~/lib/api/types/meal-plan";
 import { useAxiosDownloader } from "~/composables/api/use-axios-download";
@@ -131,6 +190,7 @@ export interface ContextMenuIncludes {
   mealplanner: boolean;
   shoppingList: boolean;
   print: boolean;
+  printPreferences: boolean;
   share: boolean;
   publicUrl: boolean;
 }
@@ -140,12 +200,15 @@ export interface ContextMenuItem {
   icon: string;
   color: string | undefined;
   event: string;
+  isPublic: boolean;
 }
 
 export default defineComponent({
   components: {
+    RecipeDialogPrintPreferences,
     RecipeDialogShare,
-  },
+    RecipeIngredientListItem
+},
   props: {
     useItems: {
       type: Object as () => ContextMenuIncludes,
@@ -157,6 +220,7 @@ export default defineComponent({
         mealplanner: true,
         shoppingList: true,
         print: true,
+        printPreferences: true,
         share: true,
         publicUrl: false,
       }),
@@ -195,6 +259,10 @@ export default defineComponent({
       required: true,
       type: String,
     },
+    recipe: {
+      type: Object as () => Recipe,
+      default: undefined,
+    },
     recipeId: {
       required: true,
       type: String,
@@ -203,24 +271,17 @@ export default defineComponent({
       type: Number,
       default: 1,
     },
-    /**
-     * Optional group ID prop that is only _required_ when the
-     * public URL is requested. If the public URL button is pressed
-     * and the groupId is not set, an error will be thrown.
-     */
-    groupId: {
-      type: String,
-      default: "",
-    },
   },
   setup(props, context) {
     const api = useUserApi();
 
     const state = reactive({
+      printPreferencesDialog: false,
       shareDialog: false,
       recipeDeleteDialog: false,
       mealplannerDialog: false,
       shoppingListDialog: false,
+      shoppingListIngredientDialog: false,
       recipeDuplicateDialog: false,
       recipeName: props.name,
       loading: false,
@@ -230,7 +291,10 @@ export default defineComponent({
       pickerMenu: false,
     });
 
-    const { i18n, $globals } = useContext();
+    const { $auth, i18n, $globals } = useContext();
+    const loggedIn = computed(() => {
+      return $auth.loggedIn;
+    });
 
     // ===========================================================================
     // Context Menu Setup
@@ -241,54 +305,70 @@ export default defineComponent({
         icon: $globals.icons.edit,
         color: undefined,
         event: "edit",
+        isPublic: false,
       },
       delete: {
         title: i18n.tc("general.delete"),
         icon: $globals.icons.delete,
         color: "error",
         event: "delete",
+        isPublic: false,
       },
       download: {
         title: i18n.tc("general.download"),
         icon: $globals.icons.download,
         color: undefined,
         event: "download",
+        isPublic: false,
       },
       duplicate: {
         title: i18n.tc("general.duplicate"),
         icon: $globals.icons.duplicate,
         color: undefined,
         event: "duplicate",
+        isPublic: false,
       },
       mealplanner: {
         title: i18n.tc("recipe.add-to-plan"),
         icon: $globals.icons.calendar,
         color: undefined,
         event: "mealplanner",
+        isPublic: false,
       },
       shoppingList: {
         title: i18n.tc("recipe.add-to-list"),
         icon: $globals.icons.cartCheck,
         color: undefined,
         event: "shoppingList",
+        isPublic: false,
       },
       print: {
         title: i18n.tc("general.print"),
         icon: $globals.icons.printer,
         color: undefined,
         event: "print",
+        isPublic: true,
+      },
+      printPreferences: {
+        title: i18n.tc("general.print-preferences"),
+        icon: $globals.icons.printerSettings,
+        color: undefined,
+        event: "printPreferences",
+        isPublic: true,
       },
       share: {
         title: i18n.tc("general.share"),
         icon: $globals.icons.shareVariant,
         color: undefined,
         event: "share",
+        isPublic: false,
       },
       publicUrl: {
         title: i18n.tc("recipe.public-link"),
         icon: $globals.icons.contentCopy,
         color: undefined,
         event: "publicUrl",
+        isPublic: true,
       },
     };
 
@@ -296,7 +376,7 @@ export default defineComponent({
     for (const [key, value] of Object.entries(props.useItems)) {
       if (value) {
         const item = defaultItems[key];
-        if (item) {
+        if (item && (item.isPublic || loggedIn.value)) {
           state.menuItems.push(item);
         }
       }
@@ -311,6 +391,9 @@ export default defineComponent({
     // Context Menu Event Handler
 
     const shoppingLists = ref<ShoppingListSummary[]>();
+    const selectedShoppingList = ref<ShoppingListSummary>();
+    const recipeRef = ref<Recipe>(props.recipe);
+    const recipeIngredients = ref<{ checked: boolean; ingredient: RecipeIngredient, disableAmount: boolean }[]>([]);
 
     async function getShoppingLists() {
       const { data } = await api.shopping.lists.getAll();
@@ -319,11 +402,65 @@ export default defineComponent({
       }
     }
 
-    async function addRecipeToList(listId: string) {
-      const { data } = await api.shopping.lists.addRecipe(listId, props.recipeId, props.recipeScale);
+    async function refreshRecipe() {
+      const { data } = await api.recipes.getOne(props.slug);
+      if (data) {
+        recipeRef.value = data;
+      }
+    }
+
+    async function openShoppingListIngredientDialog(list: ShoppingListSummary) {
+      selectedShoppingList.value = list;
+      if (!recipeRef.value) {
+        await refreshRecipe();
+      }
+
+      if (recipeRef.value?.recipeIngredient) {
+        recipeIngredients.value = recipeRef.value.recipeIngredient.map((ingredient) => {
+          return {
+            checked: true,
+            ingredient,
+            disableAmount: recipeRef.value.settings?.disableAmount || false
+          };
+        });
+      }
+
+      state.shoppingListDialog = false;
+      state.shoppingListIngredientDialog = true;
+    }
+
+    function bulkCheckIngredients(value = true) {
+      recipeIngredients.value.forEach((data) => {
+        data.checked = value;
+      });
+    }
+
+    async function addRecipeToList() {
+      if (!selectedShoppingList.value) {
+        return;
+      }
+
+      const ingredients: RecipeIngredient[] = [];
+      recipeIngredients.value.forEach((data) => {
+        if (data.checked) {
+          ingredients.push(data.ingredient);
+        }
+      });
+
+      if (!ingredients.length) {
+        return;
+      }
+
+      const { data } = await api.shopping.lists.addRecipe(
+        selectedShoppingList.value.id,
+        props.recipeId,
+        props.recipeScale,
+        ingredients
+      );
       if (data) {
         alert.success(i18n.t("recipe.recipe-added-to-list") as string);
         state.shoppingListDialog = false;
+        state.shoppingListIngredientDialog = false;
       }
     }
 
@@ -368,6 +505,21 @@ export default defineComponent({
     }
 
     const { copyText } = useCopy();
+    const groupSlug = ref<string>("");
+
+    async function setGroupSlug() {
+      if (groupSlug.value) {
+        return;
+      }
+
+      const { data } = await api.users.getSelfGroup();
+      if (data) {
+        groupSlug.value = data.slug;
+      } else {
+        // @ts-ignore this will either be a string or undefined
+        groupSlug.value = $auth.user?.groupId
+      }
+    }
 
     // Note: Print is handled as an event in the parent component
     const eventHandlers: { [key: string]: () => void | Promise<any> } = {
@@ -382,20 +534,28 @@ export default defineComponent({
       mealplanner: () => {
         state.mealplannerDialog = true;
       },
+      printPreferences: async () => {
+        if (!recipeRef.value) {
+          await refreshRecipe();
+        }
+        state.printPreferencesDialog = true;
+      },
       shoppingList: () => {
         getShoppingLists();
+
         state.shoppingListDialog = true;
+        state.shoppingListIngredientDialog = false;
       },
       share: () => {
         state.shareDialog = true;
       },
-      publicUrl: () => {
-        if (!props.groupId) {
-          alert.error("Unknown group ID");
-          console.error("prop `groupId` is required when requesting a public URL");
+      publicUrl: async () => {
+        await setGroupSlug();
+        if (!groupSlug.value) {
           return;
         }
-        copyText(`${window.location.origin}/explore/recipes/${props.groupId}/${props.slug}`);
+
+        copyText(`${window.location.origin}/explore/recipes/${groupSlug.value}/${props.slug}`);
       },
     };
 
@@ -412,17 +572,33 @@ export default defineComponent({
       state.loading = false;
     }
 
+    const planTypeOptions = usePlanTypeOptions();
+
     return {
       ...toRefs(state),
+      recipeRef,
       shoppingLists,
+      selectedShoppingList,
+      openShoppingListIngredientDialog,
       addRecipeToList,
+      bulkCheckIngredients,
       duplicateRecipe,
       contextMenuEventHandler,
       deleteRecipe,
       addRecipeToPlan,
       icon,
       planTypeOptions,
+      recipeIngredients,
     };
   },
 });
 </script>
+
+<style scoped lang="css">
+.ingredient-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: 1fr 1fr;
+  grid-gap: 0.5rem;
+}
+</style>

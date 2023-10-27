@@ -3,9 +3,10 @@
     <RecipeOrganizerPage
       v-if="items"
       :items="items"
-      :icon="$globals.icons.tags"
+      :icon="$globals.icons.categories"
       item-type="categories"
       @delete="actions.deleteOne"
+      @update="actions.updateOne"
     >
       <template #title> {{ $tc("category.categories") }} </template>
     </RecipeOrganizerPage>

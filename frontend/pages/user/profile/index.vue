@@ -1,33 +1,44 @@
 <template>
   <v-container v-if="user">
-    <section class="d-flex flex-column align-center">
-      <UserAvatar size="84" :user-id="$auth.user.id" />
+    <section class="d-flex flex-column align-center mt-4">
+      <UserAvatar size="96" :user-id="$auth.user.id" />
 
-      <h2 class="headline">👋 Welcome, {{ user.fullName }}</h2>
-      <p class="subtitle-1 mb-0">
-        Manage your profile, recipes, and group settings.
-        <a href="https://hay-kot.github.io/mealie/" target="_blank"> Learn More </a>
+      <h2 class="headline">{{ $t('profile.welcome-user', [user.fullName]) }}</h2>
+      <p class="subtitle-1 mb-0 text-center">
+       {{ $t('profile.description') }}
+        <a href="https://hay-kot.github.io/mealie/" target="_blank"> {{ $t('general.learn-more') }} </a>
       </p>
-      <v-card v-if="$auth.user.canInvite" flat color="background" width="100%" max-width="600px">
-        <v-card-actions class="d-flex justify-center">
-          <v-btn outlined rounded @click="getSignupLink()">
+      <v-card flat color="background" width="100%" max-width="600px">
+        <v-card-actions class="d-flex justify-center my-4">
+          <v-btn v-if="$auth.user.canInvite"  outlined rounded @click="getSignupLink()">
             <v-icon left>
               {{ $globals.icons.createAlt }}
             </v-icon>
-            Get Invite Link
+            {{ $t('profile.get-invite-link') }}
+          </v-btn>
+          <v-btn
+            v-if="group && group.preferences && !group.preferences.privateGroup"
+            outlined
+            rounded
+            @click="getPublicLink()"
+          >
+            <v-icon left>
+              {{ $globals.icons.shareVariant }}
+            </v-icon>
+            {{ $t('profile.get-public-link') }}
           </v-btn>
         </v-card-actions>
-        <div v-show="generatedLink !== ''">
+        <div v-show="generatedSignupLink !== ''">
           <v-card-text>
             <p class="text-center pb-0">
-              {{ generatedLink }}
+              {{ generatedSignupLink }}
             </p>
             <v-text-field v-model="sendTo" :label="$t('user.email')" :rules="[validators.email]"> </v-text-field>
           </v-card-text>
           <v-card-actions class="py-0 align-center" style="gap: 4px">
-            <BaseButton cancel @click="generatedLink = ''"> {{ $t("general.close") }} </BaseButton>
+            <BaseButton cancel @click="generatedSignupLink = ''"> {{ $t("general.close") }} </BaseButton>
             <v-spacer></v-spacer>
-            <AppButtonCopy :icon="false" color="info" :copy-text="generatedLink" />
+            <AppButtonCopy :icon="false" color="info" :copy-text="generatedSignupLink" />
             <BaseButton color="info" :disabled="!validEmail" :loading="loading" @click="sendInvite">
               <template #icon>
                 {{ $globals.icons.email }}
@@ -36,19 +47,31 @@
             </BaseButton>
           </v-card-actions>
         </div>
+        <div v-show="showPublicLink">
+          <v-card-text>
+            <p class="text-center pb-0">
+              {{ publicLink }}
+            </p>
+          </v-card-text>
+          <v-card-actions class="py-0 align-center" style="gap: 4px">
+            <BaseButton cancel @click="showPublicLink = false"> {{ $t("general.close") }} </BaseButton>
+            <v-spacer></v-spacer>
+            <AppButtonCopy :icon="false" color="info" :copy-text="publicLink" />
+          </v-card-actions>
+        </div>
       </v-card>
     </section>
     <section class="my-3">
       <div>
-        <h3 class="headline">Account Summary</h3>
-        <p>Here's a summary of your group's information</p>
+        <h3 class="headline">{{ $t('profile.account-summary') }}</h3>
+        <p>{{ $t('profile.account-summary-description') }}</p>
       </div>
       <v-row tag="section">
         <v-col cols="12" sm="12" md="6">
           <v-card outlined>
-            <v-card-title class="headline pb-0"> Group Statistics </v-card-title>
+            <v-card-title class="headline pb-0"> {{ $t('profile.group-statistics') }} </v-card-title>
             <v-card-text class="py-0">
-              Your Group Statistics provide some insight how you're using Mealie.
+              {{ $t('profile.group-statistics-description') }}
             </v-card-text>
             <v-card-text class="d-flex flex-wrap justify-center align-center" style="gap: 0.8rem">
               <StatsCards
@@ -66,10 +89,10 @@
         </v-col>
         <v-col cols="12" sm="12" md="6" class="d-flex align-strart">
           <v-card outlined>
-            <v-card-title class="headline pb-0"> Storage Capacity </v-card-title>
+            <v-card-title class="headline pb-0"> {{ $t('profile.storage-capacity') }} </v-card-title>
             <v-card-text class="py-0">
-              Your storage capacity is a calculation of the images and assets you have uploaded.
-              <strong> This feature is currently inactive</strong>
+              {{ $t('profile.storage-capacity-description') }}
+              <strong> {{ $t('general.this-feature-is-currently-inactive') }}</strong>
             </v-card-text>
             <v-card-text>
               <v-progress-linear :value="storageUsedPercentage" color="accent" class="rounded" height="30">
@@ -85,27 +108,27 @@
     <v-divider class="my-7"></v-divider>
     <section>
       <div>
-        <h3 class="headline">Personal</h3>
-        <p>These are settings that are personal to you. Changes here won't affect other users</p>
+        <h3 class="headline">{{ $t('profile.personal') }}</h3>
+        <p>{{ $t('profile.personal-description') }}</p>
       </div>
       <v-row tag="section">
         <v-col cols="12" sm="12" md="6">
           <UserProfileLinkCard
-            :link="{ text: 'Manage User Profile', to: '/user/profile/edit' }"
+            :link="{ text: $tc('profile.manage-user-profile'), to: '/user/profile/edit' }"
             :image="require('~/static/svgs/manage-profile.svg')"
           >
-            <template #title> User Settings </template>
-            Manage your preferences, change your password, and update your email
+            <template #title> {{ $t('profile.user-settings') }} </template>
+            {{ $t('profile.user-settings-description') }}
           </UserProfileLinkCard>
         </v-col>
         <AdvancedOnly>
           <v-col cols="12" sm="12" md="6">
             <UserProfileLinkCard
-              :link="{ text: 'Manage Your API Tokens', to: '/user/profile/api-tokens' }"
+              :link="{ text: $tc('profile.manage-your-api-tokens'), to: '/user/profile/api-tokens' }"
               :image="require('~/static/svgs/manage-api-tokens.svg')"
             >
-              <template #title> API Tokens </template>
-              Manage your API Tokens for access from external applications
+              <template #title> {{ $t('settings.token.api-tokens') }} </template>
+              {{ $t('profile.api-tokens-description') }}
             </UserProfileLinkCard>
           </v-col>
         </AdvancedOnly>
@@ -114,78 +137,78 @@
     <v-divider class="my-7"></v-divider>
     <section>
       <div>
-        <h3 class="headline">Group</h3>
-        <p>These items are shared within your group. Editing one of them will change it for the whole group!</p>
+        <h3 class="headline">{{ $t('group.group') }}</h3>
+        <p>{{ $t('profile.group-description') }}</p>
       </div>
       <v-row tag="section">
         <v-col cols="12" sm="12" md="6">
           <UserProfileLinkCard
-            :link="{ text: 'Group Settings', to: '/group' }"
+            :link="{ text: $tc('profile.group-settings'), to: '/group' }"
             :image="require('~/static/svgs/manage-group-settings.svg')"
           >
-            <template #title> Group Settings </template>
-            Manage your common group settings like mealplan and privacy settings.
+            <template #title> {{ $t('profile.group-settings') }} </template>
+            {{ $t('profile.group-settings-description') }}
           </UserProfileLinkCard>
         </v-col>
         <v-col cols="12" sm="12" md="6">
           <UserProfileLinkCard
-            :link="{ text: 'Manage Cookbooks', to: '/group/cookbooks' }"
+            :link="{ text: $tc('profile.manage-cookbooks'), to: '/group/cookbooks' }"
             :image="require('~/static/svgs/manage-cookbooks.svg')"
           >
-            <template #title> Cookbooks </template>
-            Manage a collection of recipe categories and generate pages for them.
+            <template #title> {{ $t('sidebar.cookbooks') }} </template>
+            {{ $t('profile.cookbooks-description') }}
           </UserProfileLinkCard>
         </v-col>
         <v-col v-if="user.canManage" cols="12" sm="12" md="6">
           <UserProfileLinkCard
-            :link="{ text: 'Manage Members', to: '/group/members' }"
+            :link="{ text: $tc('profile.manage-members'), to: '/group/members' }"
             :image="require('~/static/svgs/manage-members.svg')"
           >
-            <template #title> Members </template>
-            See who's in your group and manage their permissions.
+            <template #title> {{ $t('profile.members') }} </template>
+            {{ $t('profile.members-description') }}
           </UserProfileLinkCard>
         </v-col>
         <AdvancedOnly>
           <v-col v-if="user.advanced" cols="12" sm="12" md="6">
             <UserProfileLinkCard
-              :link="{ text: 'Manage Webhooks', to: '/group/webhooks' }"
+              :link="{ text: $tc('profile.manage-webhooks'), to: '/group/webhooks' }"
               :image="require('~/static/svgs/manage-webhooks.svg')"
             >
-              <template #title> Webhooks </template>
-              Setup webhooks that trigger on days that you have have mealplan scheduled.
+              <template #title> {{ $t('settings.webhooks.webhooks') }} </template>
+              {{ $t('profile.webhooks-description') }}
             </UserProfileLinkCard>
           </v-col>
         </AdvancedOnly>
         <AdvancedOnly>
           <v-col cols="12" sm="12" md="6">
             <UserProfileLinkCard
-              :link="{ text: 'Manage Notifiers', to: '/group/notifiers' }"
+              :link="{ text: $tc('profile.manage-notifiers'), to: '/group/notifiers' }"
               :image="require('~/static/svgs/manage-notifiers.svg')"
             >
-              <template #title> Notifiers </template>
-              Setup email and push notifications that trigger on specific events.
+              <template #title> {{ $t('profile.notifiers') }} </template>
+              {{ $t('profile.notifiers-description') }}
             </UserProfileLinkCard>
           </v-col>
         </AdvancedOnly>
         <AdvancedOnly>
           <v-col cols="12" sm="12" md="6">
             <UserProfileLinkCard
-              :link="{ text: 'Manage Data', to: '/group/data/foods' }"
+              :link="{ text: $tc('profile.manage-data'), to: '/group/data/foods' }"
               :image="require('~/static/svgs/manage-recipes.svg')"
             >
-              <template #title> Manage Data </template>
-              Manage your Food and Units (more options coming soon)
+              <template #title> {{ $t('profile.manage-data') }} </template>
+              {{ $t('profile.manage-data-description') }}
             </UserProfileLinkCard>
           </v-col>
         </AdvancedOnly>
         <AdvancedOnly>
           <v-col cols="12" sm="12" md="6">
             <UserProfileLinkCard
-              :link="{ text: 'Manage Data Migrations', to: '/group/migrations' }"
+              :link="{ text: $tc('profile.manage-data-migrations'), to: '/group/migrations' }"
               :image="require('~/static/svgs/manage-data-migrations.svg')"
             >
-              <template #title> Data Migrations </template>
-              Migrate your existing data from other applications like Nextcloud Recipes and Chowdown
+              <template #title>{{ $t('profile.data-migrations') }} </template>
+              {{ $t('profile.data-migrations-description') }}
             </UserProfileLinkCard>
           </v-col>
         </AdvancedOnly>
@@ -196,6 +219,7 @@
 
 <script lang="ts">
 import { computed, defineComponent, useContext, ref, toRefs, reactive, useAsync } from "@nuxtjs/composition-api";
+import { invoke, until } from "@vueuse/core";
 import UserProfileLinkCard from "@/components/Domain/User/UserProfileLinkCard.vue";
 import { useUserApi } from "~/composables/api";
 import { validators } from "~/composables/use-validators";
@@ -203,6 +227,7 @@ import { alert } from "~/composables/use-toast";
 import UserAvatar from "@/components/Domain/User/UserAvatar.vue";
 import { useAsyncKey } from "~/composables/use-utils";
 import StatsCards from "~/components/global/StatsCards.vue";
+import { GroupInDB, UserOut } from "~/lib/api/types/user";
 
 export default defineComponent({
   name: "UserProfile",
@@ -213,18 +238,43 @@ export default defineComponent({
   },
   scrollToTop: true,
   setup() {
-    const { $auth } = useContext();
+    const { $auth, i18n } = useContext();
 
-    const user = computed(() => $auth.user);
+    // @ts-ignore $auth.user is typed as unknown, but it's a user
+    const user = computed<UserOut | null>(() => $auth.user);
+    const group = ref<GroupInDB | null>(null);
 
-    const generatedLink = ref("");
+    const showPublicLink = ref(false);
+    const publicLink = ref("");
+
+    const generatedSignupLink = ref("");
     const token = ref("");
     const api = useUserApi();
+
+    invoke(async () => {
+      await until(user.value).not.toBeNull();
+      if (!user.value) {
+        return;
+      }
+
+      const { data } = await api.users.getSelfGroup();
+      group.value = data;
+    });
+
+    function getPublicLink() {
+      if (group.value) {
+        publicLink.value = `${window.location.origin}/explore/recipes/${group.value.slug}`
+        showPublicLink.value = true;
+        generatedSignupLink.value = "";
+      }
+    }
+
     async function getSignupLink() {
       const { data } = await api.groups.createInvitation({ uses: 1 });
       if (data) {
         token.value = data.token;
-        generatedLink.value = constructLink(data.token);
+        generatedSignupLink.value = constructLink(data.token);
+        showPublicLink.value = false;
       }
     }
 
@@ -247,9 +297,9 @@ export default defineComponent({
       });
 
       if (data && data.success) {
-        alert.success("Email Sent");
+        alert.success(i18n.tc("profile.email-sent"));
       } else {
-        alert.error("Error Sending Email");
+        alert.error(i18n.tc("profile.error-sending-email"));
       }
       state.loading = false;
     }
@@ -276,11 +326,11 @@ export default defineComponent({
     }, useAsyncKey());
 
     const statsText: { [key: string]: string } = {
-      totalRecipes: "Recipes",
-      totalUsers: "Users",
-      totalCategories: "Categories",
-      totalTags: "Tags",
-      totalTools: "Tools",
+      totalRecipes: i18n.tc("general.recipes"),
+      totalUsers: i18n.tc("user.users"),
+      totalCategories: i18n.tc("sidebar.categories"),
+      totalTags: i18n.tc("sidebar.tags"),
+      totalTools: i18n.tc("tool.tools"),
     };
 
     function getStatsTitle(key: string) {
@@ -291,7 +341,7 @@ export default defineComponent({
 
     const iconText: { [key: string]: string } = {
       totalUsers: $globals.icons.user,
-      totalCategories: $globals.icons.tags,
+      totalCategories: $globals.icons.categories,
       totalTags: $globals.icons.tags,
       totalTools: $globals.icons.potSteam,
     };
@@ -301,7 +351,7 @@ export default defineComponent({
     }
 
     const statsTo: { [key: string]: string } = {
-      totalRecipes: "/recipes/all",
+      totalRecipes: "/",
       totalUsers: "/group/members",
       totalCategories: "/recipes/categories",
       totalTags: "/recipes/tags",
@@ -341,11 +391,15 @@ export default defineComponent({
       getStatsTitle,
       getStatsIcon,
       getStatsTo,
+      group,
       stats,
       user,
       constructLink,
-      generatedLink,
+      generatedSignupLink,
+      showPublicLink,
+      publicLink,
       getSignupLink,
+      getPublicLink,
       sendInvite,
       validators,
       validEmail,

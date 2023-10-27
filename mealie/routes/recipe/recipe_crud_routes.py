@@ -1,11 +1,10 @@
 from functools import cached_property
 from shutil import copyfileobj
-from typing import Optional
 from zipfile import ZipFile
 
 import orjson
 import sqlalchemy
-from fastapi import BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, status
+from fastapi import BackgroundTasks, Depends, File, Form, HTTPException, Path, Query, Request, status
 from fastapi.datastructures import UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import UUID4, BaseModel, Field
@@ -24,14 +23,17 @@ from mealie.routes._base import BaseCrudController, controller
 from mealie.routes._base.mixins import HttpRepo
 from mealie.routes._base.routers import MealieCrudRoute, UserAPIRouter
 from mealie.schema.cookbook.cookbook import ReadCookBook
+from mealie.schema.make_dependable import make_dependable
 from mealie.schema.recipe import Recipe, RecipeImageTypes, ScrapeRecipe
-from mealie.schema.recipe.recipe import CreateRecipe, CreateRecipeByUrlBulk, RecipePagination, RecipePaginationQuery
+from mealie.schema.recipe.recipe import CreateRecipe, CreateRecipeByUrlBulk, RecipeLastMade, RecipeSummary
 from mealie.schema.recipe.recipe_asset import RecipeAsset
 from mealie.schema.recipe.recipe_ingredient import RecipeIngredient
 from mealie.schema.recipe.recipe_scraper import ScrapeRecipeTest
 from mealie.schema.recipe.recipe_settings import RecipeSettings
 from mealie.schema.recipe.recipe_step import RecipeStep
 from mealie.schema.recipe.request_helpers import RecipeDuplicate, RecipeZipTokenResponse, UpdateImageResponse
+from mealie.schema.response import PaginationBase, PaginationQuery
+from mealie.schema.response.pagination import RecipeSearchQuery
 from mealie.schema.response.responses import ErrorResponse
 from mealie.services import urls
 from mealie.services.event_bus_service.event_types import (
@@ -140,32 +142,32 @@ router = UserAPIRouter(prefix="/recipes", tags=["Recipe: CRUD"], route_class=Mea
 @controller(router)
 class RecipeController(BaseRecipeController):
     def handle_exceptions(self, ex: Exception) -> None:
-        match type(ex):  # noqa match statement not supported
-            case exceptions.PermissionDenied:
-                self.logger.error("Permission Denied on recipe controller action")
-                raise HTTPException(status_code=403, detail=ErrorResponse.respond(message="Permission Denied"))
-            case exceptions.NoEntryFound:
-                self.logger.error("No Entry Found on recipe controller action")
-                raise HTTPException(status_code=404, detail=ErrorResponse.respond(message="No Entry Found"))
-            case sqlalchemy.exc.IntegrityError:
-                self.logger.error("SQL Integrity Error on recipe controller action")
-                raise HTTPException(status_code=400, detail=ErrorResponse.respond(message="Recipe already exists"))
+        thrownType = type(ex)
 
-            case _:
-                self.logger.error("Unknown Error on recipe controller action")
-                self.logger.exception(ex)
-                raise HTTPException(
-                    status_code=500, detail=ErrorResponse.respond(message="Unknown Error", exception=str(ex))
-                )
+        if thrownType == exceptions.PermissionDenied:
+            self.logger.error("Permission Denied on recipe controller action")
+            raise HTTPException(status_code=403, detail=ErrorResponse.respond(message="Permission Denied"))
+        elif thrownType == exceptions.NoEntryFound:
+            self.logger.error("No Entry Found on recipe controller action")
+            raise HTTPException(status_code=404, detail=ErrorResponse.respond(message="No Entry Found"))
+        elif thrownType == sqlalchemy.exc.IntegrityError:
+            self.logger.error("SQL Integrity Error on recipe controller action")
+            raise HTTPException(status_code=400, detail=ErrorResponse.respond(message="Recipe already exists"))
+        else:
+            self.logger.error("Unknown Error on recipe controller action")
+            self.logger.exception(ex)
+            raise HTTPException(
+                status_code=500, detail=ErrorResponse.respond(message="Unknown Error", exception=ex.__class__.__name__)
+            )
 
     # =======================================================================
     # URL Scraping Operations
 
     @router.post("/create-url", status_code=201, response_model=str)
-    def parse_recipe_url(self, req: ScrapeRecipe):
+    async def parse_recipe_url(self, req: ScrapeRecipe):
         """Takes in a URL and attempts to scrape data and load it into the database"""
         try:
-            recipe, extras = create_from_url(req.url)
+            recipe, extras = await create_from_url(req.url)
         except ForceTimeoutException as e:
             raise HTTPException(
                 status_code=408, detail=ErrorResponse.respond(message="Recipe Scraping Timed Out")
@@ -206,10 +208,10 @@ class RecipeController(BaseRecipeController):
         return {"reportId": report_id}
 
     @router.post("/test-scrape-url")
-    def test_parse_recipe_url(self, url: ScrapeRecipeTest):
+    async def test_parse_recipe_url(self, url: ScrapeRecipeTest):
         # Debugger should produce the same result as the scraper sees before cleaning
         try:
-            if scraped_data := RecipeScraperPackage(url.url).scrape_url():
+            if scraped_data := await RecipeScraperPackage(url.url).scrape_url():
                 return scraped_data.schema.data
         except ForceTimeoutException as e:
             raise HTTPException(
@@ -232,31 +234,37 @@ class RecipeController(BaseRecipeController):
     # ==================================================================================================================
     # CRUD Operations
 
-    @router.get("", response_model=RecipePagination)
+    @router.get("", response_model=PaginationBase[RecipeSummary])
     def get_all(
         self,
         request: Request,
-        q: RecipePaginationQuery = Depends(),
-        cookbook: Optional[UUID4 | str] = Query(None),
-        categories: Optional[list[UUID4 | str]] = Query(None),
-        tags: Optional[list[UUID4 | str]] = Query(None),
-        tools: Optional[list[UUID4 | str]] = Query(None),
+        q: PaginationQuery = Depends(make_dependable(PaginationQuery)),
+        search_query: RecipeSearchQuery = Depends(make_dependable(RecipeSearchQuery)),
+        categories: list[UUID4 | str] | None = Query(None),
+        tags: list[UUID4 | str] | None = Query(None),
+        tools: list[UUID4 | str] | None = Query(None),
+        foods: list[UUID4 | str] | None = Query(None),
     ):
-        cookbook_data: Optional[ReadCookBook] = None
-        if cookbook:
-            cb_match_attr = "slug" if isinstance(cookbook, str) else "id"
-            cookbook_data = self.cookbooks_repo.get_one(cookbook, cb_match_attr)
+        cookbook_data: ReadCookBook | None = None
+        if search_query.cookbook:
+            cb_match_attr = "slug" if isinstance(search_query.cookbook, str) else "id"
+            cookbook_data = self.cookbooks_repo.get_one(search_query.cookbook, cb_match_attr)
 
-            if cookbook is None:
+            if cookbook_data is None:
                 raise HTTPException(status_code=404, detail="cookbook not found")
 
         pagination_response = self.repo.page_all(
             pagination=q,
-            load_food=q.load_food,
             cookbook=cookbook_data,
             categories=categories,
             tags=tags,
             tools=tools,
+            foods=foods,
+            require_all_categories=search_query.require_all_categories,
+            require_all_tags=search_query.require_all_tags,
+            require_all_tools=search_query.require_all_tools,
+            require_all_foods=search_query.require_all_foods,
+            search=search_query.search,
         )
 
         # merge default pagination with the request's query params
@@ -272,9 +280,15 @@ class RecipeController(BaseRecipeController):
         return JSONBytes(content=json_compatible_response)
 
     @router.get("/{slug}", response_model=Recipe)
-    def get_one(self, slug: str):
-        """Takes in a recipe slug, returns all data for a recipe"""
-        return self.mixins.get_one(slug)
+    def get_one(self, slug: str = Path(..., description="A recipe's slug or id")):
+        """Takes in a recipe's slug or id and returns all data for a recipe"""
+        try:
+            recipe = self.service.get_one_by_slug_or_id(slug)
+        except Exception as e:
+            self.handle_exceptions(e)
+            return None
+
+        return recipe
 
     @router.post("", status_code=201, response_model=str)
     def create_one(self, data: CreateRecipe) -> str | None:
@@ -360,6 +374,28 @@ class RecipeController(BaseRecipeController):
 
         return recipe
 
+    @router.patch("/{slug}/last-made")
+    def update_last_made(self, slug: str, data: RecipeLastMade):
+        """Update a recipe's last made timestamp"""
+
+        try:
+            recipe = self.service.update_last_made(slug, data.timestamp)
+        except Exception as e:
+            self.handle_exceptions(e)
+
+        if recipe:
+            self.publish_event(
+                event_type=EventTypes.recipe_updated,
+                document_data=EventRecipeData(operation=EventOperation.update, recipe_slug=recipe.slug),
+                message=self.t(
+                    "notifications.generic-updated-with-url",
+                    name=recipe.name,
+                    url=urls.recipe_url(recipe.slug, self.settings.BASE_URL),
+                ),
+            )
+
+        return recipe
+
     @router.delete("/{slug}")
     def delete_one(self, slug: str):
         """Deletes a recipe by slug"""
@@ -381,12 +417,12 @@ class RecipeController(BaseRecipeController):
     # Image and Assets
 
     @router.post("/{slug}/image", tags=["Recipe: Images and Assets"])
-    def scrape_image_url(self, slug: str, url: ScrapeRecipe):
+    async def scrape_image_url(self, slug: str, url: ScrapeRecipe):
         recipe = self.mixins.get_one(slug)
         data_service = RecipeDataService(recipe.id)
 
         try:
-            data_service.scrape_image(url.url)
+            await data_service.scrape_image(url.url)
         except NotAnImageError as e:
             raise HTTPException(
                 status_code=400,

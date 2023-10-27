@@ -1,25 +1,29 @@
 <template>
-  <v-container>
-    <RecipeCardSection
-      :icon="$globals.icons.primary"
-      :title="$t('general.recent')"
-      :recipes="recentRecipes"
-    ></RecipeCardSection>
-  </v-container>
+  <div v-if="groupSlug">
+    <RecipeExplorerPage :group-slug="groupSlug" />
+  </div>
 </template>
 
 <script lang="ts">
-import { defineComponent } from "@nuxtjs/composition-api";
-import RecipeCardSection from "~/components/Domain/Recipe/RecipeCardSection.vue";
-import { useRecipes, recentRecipes } from "~/composables/recipes";
-import { useStaticRoutes } from "~/composables/api";
+import { defineComponent, ref } from "@nuxtjs/composition-api";
+import { invoke } from "@vueuse/core";
+import { useUserApi } from "~/composables/api/api-client";
+import RecipeExplorerPage from "~/components/Domain/Recipe/RecipeExplorerPage.vue";
 
 export default defineComponent({
-  components: { RecipeCardSection },
+  components: { RecipeExplorerPage },
   setup() {
-    const { assignSorted } = useRecipes(false);
-    useStaticRoutes();
-    return { recentRecipes, assignSorted };
+    const api = useUserApi();
+    const groupSlug = ref<string>();
+
+    invoke(async () => {
+      const { data } = await api.users.getSelfGroup();
+      groupSlug.value = data?.slug;
+    });
+
+    return {
+      groupSlug,
+    };
   },
 });
 </script>

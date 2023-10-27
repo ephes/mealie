@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, status
 from pydantic import UUID4
 
 from mealie.core.security import hash_password, verify_password
+from mealie.db.models.users.users import AuthMethod
 from mealie.routes._base import BaseAdminController, BaseUserController, controller
 from mealie.routes._base.mixins import HttpRepo
 from mealie.routes._base.routers import AdminAPIRouter, UserAPIRouter
@@ -9,7 +10,7 @@ from mealie.routes.users._helpers import assert_user_change_allowed
 from mealie.schema.response import ErrorResponse, SuccessResponse
 from mealie.schema.response.pagination import PaginationQuery
 from mealie.schema.user import ChangePassword, UserBase, UserIn, UserOut
-from mealie.schema.user.user import UserPagination
+from mealie.schema.user.user import GroupInDB, UserPagination
 
 user_router = UserAPIRouter(prefix="/users", tags=["Users: CRUD"])
 admin_router = AdminAPIRouter(prefix="/users", tags=["Users: Admin CRUD"])
@@ -58,11 +59,21 @@ class UserController(BaseUserController):
     def get_logged_in_user(self):
         return self.user
 
+    @user_router.get("/self/group", response_model=GroupInDB)
+    def get_logged_in_user_group(self):
+        return self.group
+
     @user_router.put("/password")
     def update_password(self, password_change: ChangePassword):
         """Resets the User Password"""
+        if self.user.password == "LDAP" or self.user.auth_method == AuthMethod.LDAP:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, ErrorResponse.respond(self.t("user.ldap-update-password-unavailable"))
+            )
         if not verify_password(password_change.current_password, self.user.password):
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, ErrorResponse.respond("Invalid current password"))
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, ErrorResponse.respond(self.t("user.invalid-current-password"))
+            )
 
         self.user.password = hash_password(password_change.new_password)
         try:
@@ -73,7 +84,7 @@ class UserController(BaseUserController):
                 ErrorResponse.respond("Failed to update password"),
             ) from e
 
-        return SuccessResponse.respond("Password updated")
+        return SuccessResponse.respond(self.t("user.password-updated"))
 
     @user_router.put("/{item_id}")
     def update_user(self, item_id: UUID4, new_data: UserBase):
@@ -99,4 +110,4 @@ class UserController(BaseUserController):
                 ErrorResponse.respond("Failed to update user"),
             ) from e
 
-        return SuccessResponse.respond("User updated")
+        return SuccessResponse.respond(self.t("user.user-updated"))

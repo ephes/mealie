@@ -1,14 +1,18 @@
 import datetime
-import json
+from os import path
 from pathlib import Path
 
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import ForeignKeyConstraint, MetaData, create_engine, insert, text
 from sqlalchemy.engine import base
 from sqlalchemy.orm import sessionmaker
 
+from alembic import command
+from alembic.config import Config
 from mealie.services._base_service import BaseService
+
+PROJECT_DIR = Path(__file__).parent.parent.parent.parent
 
 
 class AlchemyExporter(BaseService):
@@ -16,7 +20,7 @@ class AlchemyExporter(BaseService):
     engine: base.Engine
     meta: MetaData
 
-    look_for_datetime = {"created_at", "update_at", "date_updated", "timestamp", "expires_at", "locked_at"}
+    look_for_datetime = {"created_at", "update_at", "date_updated", "timestamp", "expires_at", "locked_at", "last_made"}
     look_for_date = {"date_added", "date"}
     look_for_time = {"scheduled_time"}
 
@@ -53,87 +57,127 @@ class AlchemyExporter(BaseService):
                     data[key] = AlchemyExporter.DateTimeParser(time=value).time
         return data
 
-    @staticmethod
-    def _compare_schemas(schema1: dict, schema2: dict) -> bool:
-        try:
-            # validate alembic version(s) are the same
-            return schema1["alembic_version"] == schema2["alembic_version"]
-        except KeyError:
-            return False
-
-    @staticmethod
-    def validate_schemas(schema1: Path | dict, schema2: Path | dict) -> bool:
-        """
-        Validates that the schema of the database matches the schema of the database. In practice,
-        this means validating that the alembic version is the same
-        """
-
-        def extract_json(file: Path) -> dict:
-            with open(file) as f:
-                return json.loads(f.read())
-
-        if isinstance(schema1, Path):
-            schema1 = extract_json(schema1)
-
-        if isinstance(schema2, Path):
-            schema2 = extract_json(schema2)
-
-        return AlchemyExporter._compare_schemas(schema1, schema2)
-
     def dump_schema(self) -> dict:
         """
         Returns the schema of the SQLAlchemy database as a python dictionary. This dictionary is wrapped by
         jsonable_encoder to ensure that the object can be converted to a json string.
         """
-        self.meta.reflect(bind=self.engine)
+        with self.engine.connect() as connection:
+            self.meta.reflect(bind=self.engine)
 
-        all_tables = self.meta.tables.values()
+            all_tables = self.meta.tables.values()
 
-        results = {
-            **{table.name: [] for table in all_tables},
-            "alembic_version": [dict(row) for row in self.engine.execute("SELECT * FROM alembic_version").fetchall()],
-        }
+            results = {
+                **{table.name: [] for table in all_tables},
+                "alembic_version": [
+                    dict(row) for row in connection.execute(text("SELECT * FROM alembic_version")).mappings()
+                ],
+            }
 
-        return jsonable_encoder(results)
+            return jsonable_encoder(results)
 
     def dump(self) -> dict[str, list[dict]]:
         """
         Returns the entire SQLAlchemy database as a python dictionary. This dictionary is wrapped by
         jsonable_encoder to ensure that the object can be converted to a json string.
         """
-        self.meta.reflect(bind=self.engine)  # http://docs.sqlalchemy.org/en/rel_0_9/core/reflection.html
-        result = {
-            table.name: [dict(row) for row in self.engine.execute(table.select())] for table in self.meta.sorted_tables
-        }
+        with self.engine.connect() as connection:
+            self.meta.reflect(bind=self.engine)  #  http://docs.sqlalchemy.org/en/rel_0_9/core/reflection.html
+
+            result = {
+                table.name: [dict(row) for row in connection.execute(table.select()).mappings()]
+                for table in self.meta.sorted_tables
+            }
 
         return jsonable_encoder(result)
 
     def restore(self, db_dump: dict) -> None:
+        # setup alembic to run migrations up the version of the backup
+        alembic_data = db_dump["alembic_version"]
+        alembic_version = alembic_data[0]["version_num"]
+
+        alembic_cfg = Config(str(PROJECT_DIR / "alembic.ini"))
+        # alembic's file resolver wants to use the "mealie" subdirectory when called from within the server package
+        # Just override this to use the correct migrations path
+        alembic_cfg.set_main_option("script_location", path.join(PROJECT_DIR, "alembic"))
+        command.upgrade(alembic_cfg, alembic_version)
+
+        del db_dump["alembic_version"]
         """Restores all data from dictionary into the database"""
-        data = AlchemyExporter.convert_to_datetime(db_dump)
+        with self.engine.begin() as connection:
+            data = AlchemyExporter.convert_to_datetime(db_dump)
 
-        self.meta.reflect(bind=self.engine)
-        for table_name, rows in data.items():
-            if not rows:
-                continue
+            self.meta.reflect(bind=self.engine)
+            for table_name, rows in data.items():
+                if not rows:
+                    continue
+                table = self.meta.tables[table_name]
 
-            table = self.meta.tables[table_name]
-            self.engine.execute(table.delete())
-            self.engine.execute(table.insert(), rows)
+                connection.execute(table.delete())
+                connection.execute(insert(table), rows)
+            if self.engine.dialect.name == "postgresql":
+                # Restore postgres sequence numbers
+                connection.execute(
+                    text(
+                        """
+                SELECT SETVAL('api_extras_id_seq', (SELECT MAX(id) FROM api_extras));
+SELECT SETVAL('group_meal_plans_id_seq', (SELECT MAX(id) FROM group_meal_plans));
+SELECT SETVAL('ingredient_food_extras_id_seq', (SELECT MAX(id) FROM ingredient_food_extras));
+SELECT SETVAL('invite_tokens_id_seq', (SELECT MAX(id) FROM invite_tokens));
+SELECT SETVAL('long_live_tokens_id_seq', (SELECT MAX(id) FROM long_live_tokens));
+SELECT SETVAL('notes_id_seq', (SELECT MAX(id) FROM notes));
+SELECT SETVAL('password_reset_tokens_id_seq', (SELECT MAX(id) FROM password_reset_tokens));
+SELECT SETVAL('recipe_assets_id_seq', (SELECT MAX(id) FROM recipe_assets));
+SELECT SETVAL('recipe_ingredient_ref_link_id_seq', (SELECT MAX(id) FROM recipe_ingredient_ref_link));
+SELECT SETVAL('recipe_nutrition_id_seq', (SELECT MAX(id) FROM recipe_nutrition));
+SELECT SETVAL('recipe_settings_id_seq', (SELECT MAX(id) FROM recipe_settings));
+SELECT SETVAL('recipes_ingredients_id_seq', (SELECT MAX(id) FROM recipes_ingredients));
+SELECT SETVAL('server_tasks_id_seq', (SELECT MAX(id) FROM server_tasks));
+SELECT SETVAL('shopping_list_extras_id_seq', (SELECT MAX(id) FROM shopping_list_extras));
+SELECT SETVAL('shopping_list_item_extras_id_seq', (SELECT MAX(id) FROM shopping_list_item_extras));
+"""
+                    )
+                )
+
+        # Run all migrations up to current version
+        command.upgrade(alembic_cfg, "head")
 
     def drop_all(self) -> None:
         """Drops all data from the database"""
-        self.meta.reflect(bind=self.engine)
-        with self.session_maker() as session:
-            is_postgres = self.settings.DB_ENGINE == "postgres"
+        from sqlalchemy.engine.reflection import Inspector
+        from sqlalchemy.schema import DropConstraint, DropTable, MetaData, Table
 
-            try:
-                if is_postgres:
-                    session.execute("SET session_replication_role = 'replica'")
+        with self.engine.begin() as connection:
+            inspector = Inspector.from_engine(self.engine)
 
-                for table in self.meta.sorted_tables:
-                    session.execute(f"DELETE FROM {table.name}")
-            finally:
-                if is_postgres:
-                    session.execute("SET session_replication_role = 'origin'")
-                session.commit()
+            # We need to re-create a minimal metadata with only the required things to
+            # successfully emit drop constraints and tables commands for postgres (based
+            # on the actual schema of the running instance)
+            meta = MetaData()
+            tables = []
+            all_fkeys = []
+            for table_name in inspector.get_table_names():
+                fkeys = []
+
+                for fkey in inspector.get_foreign_keys(table_name):
+                    if not fkey["name"]:
+                        continue
+
+                    fkeys.append(ForeignKeyConstraint((), (), name=fkey["name"]))
+
+                tables.append(Table(table_name, meta, *fkeys))
+                all_fkeys.extend(fkeys)
+
+            if self.engine.dialect.name == "postgresql":
+                # Only pg needs foreign key dropping
+                for fkey in all_fkeys:
+                    connection.execute(DropConstraint(fkey))
+
+                for table in tables:
+                    connection.execute(DropTable(table))
+                # I have no idea how to drop all custom types with sqlalchemy
+                # Since we only have one, this will have to do for now
+                connection.execute(text("DROP TYPE authmethod"))
+            else:
+                for table in tables:
+                    connection.execute(DropTable(table))

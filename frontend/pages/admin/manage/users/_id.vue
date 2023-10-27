@@ -27,7 +27,14 @@
             label="User Group"
             :rules="[validators.required]"
           ></v-select>
-          <AutoForm v-model="user" :items="userForm" update-mode />
+          <div class="d-flex py-2 pr-2">
+            <BaseButton type="button" :loading="generatingToken" create @click.prevent="handlePasswordReset">
+              {{ $t("user.generate-password-reset-link") }}
+            </BaseButton>
+            <AppButtonCopy v-if="resetUrl" :copy-text="resetUrl"></AppButtonCopy>
+          </div>
+
+          <AutoForm v-model="user" :items="userForm" update-mode :disabled-fields="disabledFields" />
         </v-card-text>
       </v-card>
       <div class="d-flex pa-2">
@@ -38,7 +45,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, useRoute, onMounted, ref } from "@nuxtjs/composition-api";
+import { computed, defineComponent, useRoute, onMounted, ref } from "@nuxtjs/composition-api";
 import { useAdminApi } from "~/composables/api";
 import { useGroups } from "~/composables/use-groups";
 import { alert } from "~/composables/use-toast";
@@ -64,8 +71,14 @@ export default defineComponent({
     const adminApi = useAdminApi();
 
     const user = ref<UserOut | null>(null);
+    const disabledFields = computed(() => {
+      return user.value?.authMethod === "LDAP" ? ["admin"] : [];
+    })
 
     const userError = ref(false);
+
+    const resetUrl = ref<string | null>(null);
+    const generatingToken = ref(false);
 
     onMounted(async () => {
       const { data, error } = await adminApi.users.getOne(userId);
@@ -90,14 +103,32 @@ export default defineComponent({
       }
     }
 
+    async function handlePasswordReset() {
+      if (user.value === null) return;
+      generatingToken.value = true;
+
+      const { response, data } = await adminApi.users.generatePasswordResetToken({ email: user.value.email });
+
+      if (response?.status === 201 && data) {
+        const token: string = data.token;
+        resetUrl.value = `${window.location.origin}/reset-password/?token=${token}`;
+      }
+
+      generatingToken.value = false;
+    }
+
     return {
       user,
+      disabledFields,
       userError,
       userForm,
       refNewUserForm,
       handleSubmit,
       groups,
       validators,
+      handlePasswordReset,
+      resetUrl,
+      generatingToken,
     };
   },
 });

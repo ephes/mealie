@@ -1,7 +1,7 @@
 import secrets
 from pathlib import Path
 
-from pydantic import BaseSettings, NoneStr
+from pydantic import BaseSettings, NoneStr, validator
 
 from .db_providers import AbstractDBProvider, db_provider_factory
 
@@ -25,11 +25,20 @@ def determine_secrets(data_dir: Path, production: bool) -> str:
 class AppSettings(BaseSettings):
     PRODUCTION: bool
     BASE_URL: str = "http://localhost:8080"
+    """trailing slashes are trimmed (ex. `http://localhost:8080/` becomes ``http://localhost:8080`)"""
+
+    STATIC_FILES: str = ""
+    """path to static files directory (ex. `mealie/dist`)"""
+
     IS_DEMO: bool = False
     API_PORT: int = 9000
     API_DOCS: bool = True
-    TOKEN_TIME: int = 48  # Time in Hours
+    TOKEN_TIME: int = 48
+    """time in hours"""
+
     SECRET: str
+    LOG_LEVEL: str = "INFO"
+    """corresponds to standard Python log levels"""
 
     GIT_COMMIT_HASH: str = "unknown"
 
@@ -39,7 +48,15 @@ class AppSettings(BaseSettings):
     # Security Configuration
 
     SECURITY_MAX_LOGIN_ATTEMPTS: int = 5
-    SECURITY_USER_LOCKOUT_TIME: int = 24  # Time in Hours
+    SECURITY_USER_LOCKOUT_TIME: int = 24
+    "time in hours"
+
+    @validator("BASE_URL")
+    def remove_trailing_slash(cls, v: str) -> str:
+        if v and v[-1] == "/":
+            return v[:-1]
+
+        return v
 
     @property
     def DOCS_URL(self) -> str | None:
@@ -64,7 +81,7 @@ class AppSettings(BaseSettings):
         return self.DB_PROVIDER.db_url_public if self.DB_PROVIDER else None
 
     DEFAULT_GROUP: str = "Home"
-    DEFAULT_EMAIL: str = "changeme@email.com"
+    DEFAULT_EMAIL: str = "changeme@example.com"
     DEFAULT_PASSWORD: str = "MyPassword"
 
     # ===============================================
@@ -116,18 +133,25 @@ class AppSettings(BaseSettings):
     LDAP_SERVER_URL: NoneStr = None
     LDAP_TLS_INSECURE: bool = False
     LDAP_TLS_CACERTFILE: NoneStr = None
-    LDAP_BIND_TEMPLATE: NoneStr = None
+    LDAP_ENABLE_STARTTLS: bool = False
     LDAP_BASE_DN: NoneStr = None
+    LDAP_QUERY_BIND: NoneStr = None
+    LDAP_QUERY_PASSWORD: NoneStr = None
+    LDAP_USER_FILTER: NoneStr = None
     LDAP_ADMIN_FILTER: NoneStr = None
+    LDAP_ID_ATTRIBUTE: str = "uid"
+    LDAP_MAIL_ATTRIBUTE: str = "mail"
+    LDAP_NAME_ATTRIBUTE: str = "name"
 
     @property
     def LDAP_ENABLED(self) -> bool:
         """Validates LDAP settings are all set"""
         required = {
             self.LDAP_SERVER_URL,
-            self.LDAP_BIND_TEMPLATE,
             self.LDAP_BASE_DN,
-            self.LDAP_ADMIN_FILTER,
+            self.LDAP_ID_ATTRIBUTE,
+            self.LDAP_MAIL_ATTRIBUTE,
+            self.LDAP_NAME_ATTRIBUTE,
         }
         not_none = None not in required
         return self.LDAP_AUTH_ENABLED and not_none

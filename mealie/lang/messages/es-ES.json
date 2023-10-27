@@ -5,6 +5,18 @@
     "recipe": {
         "unique-name-error": "El nombre de la receta debe ser único"
     },
+    "mealplan": {
+        "no-recipes-match-your-rules": "No hay recetas que coincidan con tus reglas"
+    },
+    "user": {
+        "user-updated": "Usuario actualizado",
+        "password-updated": "Contraseña actualizada",
+        "invalid-current-password": "Contraseña actual incorrecta",
+        "ldap-update-password-unavailable": "No se puede actualizar la contraseña, el usuario está controlado por LDAP"
+    },
+    "group": {
+        "report-deleted": "El informe fue eliminado."
+    },
     "exceptions": {
         "permission_denied": "No tiene permiso para realizar esta acción",
         "no-entry-found": "No se ha encontrado el recurso solicitado",
@@ -17,7 +29,7 @@
         "generic-updated": "{name} actualizado/a",
         "generic-created-with-url": "Se ha creado {name}, {url}",
         "generic-updated-with-url": "Se ha actualizado {name}, {url}",
-        "generic-duplicated": "{name} has been duplicated",
+        "generic-duplicated": "Se ha duplicado {name}",
         "generic-deleted": "Se ha eliminado {name}"
     }
 }

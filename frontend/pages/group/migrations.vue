@@ -9,14 +9,13 @@
           :src="require('~/static/svgs/manage-data-migrations.svg')"
         ></v-img>
       </template>
-      <template #title> Recipe Data Migrations</template>
-      Recipes can be migrated from another supported application to Mealie. This is a great way to get started with
-      Mealie.
+      <template #title> {{ $t('migration.recipe-data-migrations') }}</template>
+      {{ $t('migration.recipe-data-migrations-explanation') }}
     </BasePageTitle>
     <v-container>
-      <BaseCardSectionTitle title="New Migration"> </BaseCardSectionTitle>
+      <BaseCardSectionTitle :title="$i18n.tc('migration.new-migration')"> </BaseCardSectionTitle>
       <v-card outlined :loading="loading">
-        <v-card-title> Choose Migration Type </v-card-title>
+        <v-card-title> {{ $t('migration.choose-migration-type') }} </v-card-title>
         <v-card-text v-if="content" class="pb-0">
           <div class="mb-2">
             <BaseOverflowButton v-model="migrationType" mode="model" :items="items" />
@@ -29,7 +28,7 @@
           </v-treeview>
         </v-card-text>
 
-        <v-card-title class="mt-0"> Upload File </v-card-title>
+        <v-card-title class="mt-0"> {{ $t('general.upload-file') }} </v-card-title>
         <v-card-text>
           <AppButtonUpload
             accept=".zip"
@@ -39,13 +38,17 @@
             :text-btn="false"
             @uploaded="setFileObject"
           />
-          {{ fileObject.name || "No file selected" }}
+          {{ fileObject.name || $i18n.tc('migration.no-file-selected') }}
         </v-card-text>
 
         <v-card-text>
           <v-checkbox v-model="addMigrationTag">
             <template #label>
-              Tag all recipes with <b class="mx-1"> {{ migrationType }} </b> tag
+          <i18n path="migration.tag-all-recipes">
+            <template #tag-name>
+              <b class="mx-1"> {{ migrationType }} </b>
+            </template>
+          </i18n>
             </template>
           </v-checkbox>
         </v-card-text>
@@ -58,7 +61,7 @@
       </v-card>
     </v-container>
     <v-container>
-      <BaseCardSectionTitle title="Previous Migrations"> </BaseCardSectionTitle>
+      <BaseCardSectionTitle :title="$i18n.tc('migration.previous-migrations')"> </BaseCardSectionTitle>
       <ReportTable :items="reports" @delete="deleteReport" />
     </v-container>
   </v-container>
@@ -74,13 +77,16 @@ import { SupportedMigrations } from "~/lib/api/types/group";
 const MIGRATIONS = {
   nextcloud: "nextcloud",
   chowdown: "chowdown",
+  copymethat: "copymethat",
   paprika: "paprika",
   mealie: "mealie_alpha",
+  tandoor: "tandoor",
+  plantoeat: "plantoeat",
 };
 
 export default defineComponent({
   setup() {
-    const { $globals } = useContext();
+    const { $globals, i18n } = useContext();
 
     const api = useUserApi();
 
@@ -95,26 +101,38 @@ export default defineComponent({
 
     const items: MenuItem[] = [
       {
-        text: "Nextcloud",
+        text: i18n.tc("migration.nextcloud.title"),
         value: MIGRATIONS.nextcloud,
       },
       {
-        text: "Chowdown",
+        text: i18n.tc("migration.chowdown.title"),
         value: MIGRATIONS.chowdown,
       },
       {
-        text: "Paprika",
+        text: i18n.tc("migration.copymethat.title"),
+        value: MIGRATIONS.copymethat,
+      },
+      {
+        text: i18n.tc("migration.paprika.title"),
         value: MIGRATIONS.paprika,
       },
       {
-        text: "Mealie",
+        text: i18n.tc("migration.mealie-pre-v1.title"),
         value: MIGRATIONS.mealie,
+      },
+      {
+        text: i18n.tc("migration.tandoor.title"),
+        value: MIGRATIONS.tandoor,
+      },
+      {
+        text: i18n.tc("migration.plantoeat.title"),
+        value: MIGRATIONS.plantoeat,
       },
     ];
 
     const _content = {
       [MIGRATIONS.nextcloud]: {
-        text: "Nextcloud recipes can be imported from a zip file that contains the data stored in Nextcloud. See the example folder structure below to ensure your recipes are able to be imported.",
+        text: i18n.tc("migration.nextcloud.description-long"),
         tree: [
           {
             id: 1,
@@ -123,7 +141,7 @@ export default defineComponent({
             children: [
               {
                 id: 2,
-                name: "Recipe 1",
+                name: i18n.t("migration.recipe-1"),
                 icon: $globals.icons.folderOutline,
                 children: [
                   { id: 3, name: "recipe.json", icon: $globals.icons.codeJson },
@@ -133,7 +151,7 @@ export default defineComponent({
               },
               {
                 id: 6,
-                name: "Recipe 2",
+                name: i18n.t("migration.recipe-2"),
                 icon: $globals.icons.folderOutline,
                 children: [
                   { id: 7, name: "recipe.json", icon: $globals.icons.codeJson },
@@ -146,7 +164,7 @@ export default defineComponent({
         ],
       },
       [MIGRATIONS.chowdown]: {
-        text: "Mealie natively supports the chowdown repository format. Download the code repository as a .zip file and upload it below",
+        text: i18n.tc("migration.chowdown.description-long"),
         tree: [
           {
             id: 1,
@@ -155,7 +173,7 @@ export default defineComponent({
             children: [
               {
                 id: 2,
-                name: "Recipe 1",
+                name: i18n.t("migration.recipe-1"),
                 icon: $globals.icons.folderOutline,
                 children: [
                   { id: 3, name: "recipe.json", icon: $globals.icons.codeJson },
@@ -165,7 +183,7 @@ export default defineComponent({
               },
               {
                 id: 6,
-                name: "Recipe 2",
+                name: i18n.t("migration.recipe-2"),
                 icon: $globals.icons.folderOutline,
                 children: [
                   { id: 7, name: "recipe.json", icon: $globals.icons.codeJson },
@@ -177,12 +195,35 @@ export default defineComponent({
           },
         ],
       },
+      [MIGRATIONS.copymethat]: {
+        text: i18n.tc("migration.copymethat.description-long"),
+        tree: [
+          {
+            id: 1,
+            icon: $globals.icons.zip,
+            name: "Copy_Me_That_20230306.zip",
+            children: [
+              {
+                id: 2,
+                name: "images",
+                icon: $globals.icons.folderOutline,
+                children: [
+                  { id: 3, name: "recipe_1_an5zy.jpg", icon: $globals.icons.fileImage },
+                  { id: 4, name: "recipe_2_82el8.jpg", icon: $globals.icons.fileImage },
+                  { id: 5, name: "recipe_3_j75qg.jpg", icon: $globals.icons.fileImage },
+                ],
+              },
+              { id: 6, name: "recipes.html", icon: $globals.icons.codeJson }
+            ]
+          }
+        ],
+      },
       [MIGRATIONS.paprika]: {
-        text: "Mealie can import recipes from the Paprika application. Export your recipes from paprika, rename the export extension to .zip and upload it below.",
+        text: i18n.tc("migration.paprika.description-long"),
         tree: false,
       },
       [MIGRATIONS.mealie]: {
-        text: "Mealie can import recipes from the Mealie application from a pre v1.0 release. Export your recipes from your old instance, and upload the zip file below. Note that only recipes can be imported from the export.",
+        text: i18n.tc("migration.mealie-pre-v1.description-long"),
         tree: [
           {
             id: 1,
@@ -234,6 +275,58 @@ export default defineComponent({
               },
             ],
           },
+        ],
+      },
+      [MIGRATIONS.tandoor]: {
+        text: i18n.tc("migration.tandoor.description-long"),
+        tree: [
+          {
+            id: 1,
+            icon: $globals.icons.zip,
+            name: "tandoor_default_export_full_2023-06-29.zip",
+            children: [
+              {
+                id: 2,
+                name: "1.zip",
+                icon: $globals.icons.zip,
+                children: [
+                  { id: 3, name: "image.jpeg", icon: $globals.icons.fileImage },
+                  { id: 4, name: "recipe.json", icon: $globals.icons.codeJson },
+                ]
+              },
+              {
+                id: 5,
+                name: "2.zip",
+                icon: $globals.icons.zip,
+                children: [
+                  { id: 6, name: "image.jpeg", icon: $globals.icons.fileImage },
+                  { id: 7, name: "recipe.json", icon: $globals.icons.codeJson },
+                ]
+              },
+              {
+                id: 8,
+                name: "3.zip",
+                icon: $globals.icons.zip,
+                children: [
+                  { id: 9, name: "image.jpeg", icon: $globals.icons.fileImage },
+                  { id: 10, name: "recipe.json", icon: $globals.icons.codeJson },
+                ]
+              }
+            ]
+          }
+        ],
+      },
+      [MIGRATIONS.plantoeat]: {
+        text: i18n.tc("migration.plantoeat.description-long"),
+        tree: [
+          {
+            id: 1,
+            icon: $globals.icons.zip,
+            name: "plantoeat-recipes-508318_10-13-2023.zip",
+            children: [
+                  { id: 9, name: "plantoeat-recipes-508318_10-13-2023.csv", icon: $globals.icons.codeJson },
+            ],
+          }
         ],
       },
     };

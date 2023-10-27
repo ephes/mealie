@@ -41,11 +41,11 @@
       :nudge-top="menuTop ? '5' : '0'"
       allow-overflow
       close-delay="125"
-      open-on-hover
+      :open-on-hover="!useMobileFormat"
       content-class="d-print-none"
     >
       <template #activator="{ on, attrs }">
-        <v-btn :fab="fab" :small="fab" :elevation="elevation" :color="color" :icon="!fab" v-bind="attrs" v-on="on" @click.prevent>
+        <v-btn :fab="fab" :x-small="fab" :elevation="elevation" :color="color" :icon="!fab" v-bind="attrs" v-on="on" @click.prevent>
           <v-icon>{{ icon }}</v-icon>
         </v-btn>
       </template>
@@ -113,10 +113,6 @@ export default defineComponent({
       type: String,
       default: "primary",
     },
-    slug: {
-      type: String,
-      required: true,
-    },
     event: {
       type: Object as () => RecipeTimelineEventOut,
       required: true,
@@ -125,6 +121,10 @@ export default defineComponent({
       type: String,
       default: null,
     },
+    useMobileFormat: {
+      type: Boolean,
+      default: true,
+    }
   },
   setup(props, context) {
     const domEditEventForm = ref<VForm>();

@@ -5,6 +5,18 @@
     "recipe": {
         "unique-name-error": "Oppskriftsnavn må være unike"
     },
+    "mealplan": {
+        "no-recipes-match-your-rules": "Ingen oppskrifter samsvarer med reglene dine"
+    },
+    "user": {
+        "user-updated": "Bruker oppdatert",
+        "password-updated": "Passord oppdatert",
+        "invalid-current-password": "Feil nåværende passord",
+        "ldap-update-password-unavailable": "Kan ikke oppdatere passordet, brukeren kontrolleres av LDAP"
+    },
+    "group": {
+        "report-deleted": "Rapport slettet."
+    },
     "exceptions": {
         "permission_denied": "Du har ikke rettigheter til å utføre denne handlingen",
         "no-entry-found": "Den forespurte ressursen ble ikke funnet",

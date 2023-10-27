@@ -1,5 +1,6 @@
 export default {
   // Global page headers: https://go.nuxtjs.dev/config-head
+  target: "static",
   head: {
     title: "Mealie",
     meta: [
@@ -25,7 +26,12 @@ export default {
         content: "Mealie is a recipe management app for your kitchen.",
       },
     ],
-    link: [{ rel: "icon", type: "image/x-icon", href: "/favicon.ico" }],
+    link: [
+      { hid: "favicon", rel: "icon", type: "image/x-icon", href: "/favicon.ico", "data-n-head": "ssr" },
+      { hid: "shortcut icon", rel: "shortcut icon", type: "image/png", href: "/icons/icon-x64.png", "data-n-head": "ssr" },
+      { hid: "apple-touch-icon", rel: "apple-touch-icon", type: "image/png", href: "/icons/apple-touch-icon.png", "data-n-head": "ssr" },
+      { hid: "mask-icon", rel: "mask-icon", href: "/icons/safari-pinned-tab.svg", "data-n-head": "ssr" }
+    ],
   },
 
   env: {
@@ -81,7 +87,7 @@ export default {
     // https://go.nuxtjs.dev/axios
     "@nuxtjs/axios",
     // https://go.nuxtjs.dev/pwa
-    "@nuxtjs/pwa",
+    ...(process.env.NODE_ENV === "production" ? ["@nuxtjs/pwa"] : []),
     // https://i18n.nuxtjs.org/setup
     "@nuxtjs/i18n",
     // https://auth.nuxtjs.org/guide/setup
@@ -158,6 +164,7 @@ export default {
   i18n: {
     locales: [
       // CODE_GEN_ID: MESSAGE_LOCALES
+      { code: "lv-LV", file: "lv-LV.json" },
       { code: "el-GR", file: "el-GR.json" },
       { code: "it-IT", file: "it-IT.json" },
       { code: "ko-KR", file: "ko-KR.json" },
@@ -177,12 +184,14 @@ export default {
       { code: "lt-LT", file: "lt-LT.json" },
       { code: "fr-CA", file: "fr-CA.json" },
       { code: "pl-PL", file: "pl-PL.json" },
+      { code: "hr-HR", file: "hr-HR.json" },
       { code: "da-DK", file: "da-DK.json" },
       { code: "pt-BR", file: "pt-BR.json" },
       { code: "de-DE", file: "de-DE.json" },
       { code: "ca-ES", file: "ca-ES.json" },
       { code: "sr-SP", file: "sr-SP.json" },
       { code: "cs-CZ", file: "cs-CZ.json" },
+      { code: "gl-ES", file: "gl-ES.json" },
       { code: "fr-FR", file: "fr-FR.json" },
       { code: "zh-TW", file: "zh-TW.json" },
       { code: "af-ZA", file: "af-ZA.json" },
@@ -271,7 +280,7 @@ export default {
         info: process.env.THEME_DARK_INFO || "#1976d2",
         warning: process.env.THEME_DARK_WARNING || "#FF6D00",
         error: process.env.THEME_DARK_ERROR || "#EF5350",
-        background: "#202021",
+        background: "#1E1E1E",
       },
       light: {
         primary: process.env.THEME_LIGHT_PRIMARY || "#E58325",
@@ -294,11 +303,23 @@ export default {
         [`${process.env.SUB_PATH || ""}api`]: "/api", // rewrite path
       },
       changeOrigin: true,
-      target: process.env.API_URL || "http://127.0.0.1:9000",
+      target: process.env.API_URL || "http://localhost:9000",
+      xfwd: true,
     },
     "/api": {
       changeOrigin: true,
-      target: process.env.API_URL || "http://127.0.0.1:9000",
+      target: process.env.API_URL || "http://localhost:9000",
+      xfwd: true,
+    },
+    "/docs": {
+      changeOrigin: true,
+      target: process.env.API_URL || "http://localhost:9000",
+      xfwd: true,
+    },
+    "/openapi.json": {
+      changeOrigin: true,
+      target: process.env.API_URL || "http://localhost:9000",
+      xfwd: true,
     },
   },
 
@@ -308,7 +329,7 @@ export default {
       /* meta options */
       name: "Mealie",
       description: "Mealie is a recipe management and meal planning app",
-      theme_color: "#E58325",
+      theme_color: process.env.THEME_LIGHT_PRIMARY || "#E58325",
       ogSiteName: "Mealie",
     },
     manifest: {
@@ -316,80 +337,54 @@ export default {
       lang: "en",
       name: "Mealie",
       short_name: "Mealie",
-      title: "Mealie",
+      description: "Mealie is a recipe management and meal planning app",
+      theme_color: process.env.THEME_LIGHT_PRIMARY || "#E58325",
       background_color: "#FFFFFF",
+      display: "standalone",
       share_target: {
-        action: "/",
+        action: "/recipe/create/url",
         method: "GET",
         params: {
-          title: "title",
-          text: "recipe_import_url",
+          /* title and url are not currently used in Mealie. If there are issues
+             with sharing, uncommenting those lines might help solve the puzzle. */
+          // "title": "title",
+          "text": "recipe_import_url",
+          // "url": "url",
         },
       },
+      icons: [
+        {
+          src: "/icons/android-chrome-192x192.png",
+          sizes: "192x192",
+          type: "image/png",
+          purpose: "any",
+        },
+        {
+          src: "/icons/android-chrome-512x512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any",
+        },
+        {
+          src: "/icons/android-chrome-maskable-192x192.png",
+          sizes: "192x192",
+          type: "image/png",
+          purpose: "maskable",
+        },
+        {
+          src: "/icons/android-chrome-maskable-512x512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "maskable",
+        },
+      ],
     },
-    icons: [
-      {
-        src: "[srcDir]/[staticDir]/icons/android-chrome-192x192.png",
-        sizes: "192x192",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "[srcDir]/[staticDir]/icons/android-chrome-512x512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "[srcDir]/[staticDir]/icons/android-chrome-maskable-192x192.png",
-        sizes: "192x192",
-        type: "image/png",
-        purpose: "maskable",
-      },
-      {
-        src: "[srcDir]/[staticDir]/icons/android-chrome-maskable-512x512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "maskable",
-      },
-    ],
+    icon: false, // disables the icon module
   },
 
   // Vuetify module configuration: https://go.nuxtjs.dev/config-vuetify
   vuetify: {
-    customVariables: ["~/assets/variables.scss"],
-    icons: {
-      iconfont: "mdiSvg", // 'mdi' || 'mdiSvg' || 'md' || 'fa' || 'fa4' || 'faSvg'
-    },
-    defaultAssets: false,
-    theme: {
-      options: {
-        customProperties: true,
-      },
-      dark: false,
-      // Theme Config set at runtime by /plugins/theme.ts
-      // This config doesn't do anything.
-      themes: {
-        dark: {
-          primary: "#E58325",
-          accent: "#007A99",
-          secondary: "#973542",
-          success: "#43A047",
-          info: "#1976d2",
-          warning: "#FF6D00",
-          error: "#EF5350",
-        },
-        light: {
-          primary: "#E58325",
-          accent: "#007A99",
-          secondary: "#973542",
-          success: "#43A047",
-          info: "#1976d2",
-          warning: "#FF6D00",
-          error: "#EF5350",
-        },
-      },
-    },
+    optionsPath: "./vuetify.options.js",
   },
 
   // Build Configuration: https://go.nuxtjs.dev/config-build
@@ -401,6 +396,17 @@ export default {
         ["@babel/plugin-proposal-private-property-in-object", { loose: true }],
         // ["@nuxtjs/composition-api/dist/babel-plugin"],
       ],
+    },
+    // audio file support
+    // https://v2.nuxt.com/docs/features/configuration/#extend-webpack-to-load-audio-files
+    extend(config, ctx) {
+      config.module.rules.push({
+        test: /\.(ogg|mp3|wav|mpe?g)$/i,
+        loader: 'file-loader',
+        options: {
+          name: '[path][name].[ext]'
+        }
+      })
     },
     transpile: process.env.NODE_ENV !== "production" ? [/@vue[\\/]composition-api/] : null,
   },

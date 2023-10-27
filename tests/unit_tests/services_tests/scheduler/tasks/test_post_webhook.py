@@ -51,7 +51,7 @@ def test_get_scheduled_webhooks_filter_query(database: AllRepositories, unique_u
         if new_item.enabled:
             expected.append(new_item)
 
-    event_bus_listener = WebhookEventListener(database.session, unique_user.group_id)  # type: ignore
+    event_bus_listener = WebhookEventListener(unique_user.group_id)  # type: ignore
     results = event_bus_listener.get_scheduled_webhooks(start, datetime.now() + timedelta(minutes=5))
 
     assert len(results) == len(expected)
@@ -60,7 +60,6 @@ def test_get_scheduled_webhooks_filter_query(database: AllRepositories, unique_u
         assert result.enabled
 
         for expected_item in expected:
-
             if result.name == expected_item.name:  # Names are uniquely generated so we can use this to compare
                 assert result.enabled == expected_item.enabled
                 break

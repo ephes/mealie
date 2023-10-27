@@ -1,6 +1,6 @@
 const parts = {
   host: "http://localhost.com",
-  prefix: "/api",
+  prefix: "",
 };
 
 export function overrideParts(host: string, prefix: string) {
@@ -21,7 +21,6 @@ export type QueryValue = string | string[] | number | number[] | boolean | null 
  */
 export function route(rest: string, params: Record<string, QueryValue> | null = null): string {
   const url = new URL(parts.prefix + rest, parts.host);
-
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (Array.isArray(value)) {
