@@ -22,17 +22,6 @@
       environment:
         PATH: "{{ default_path }}"
 
-    - name: Add yarn signing key - do not download if present
-      apt_key:
-        id: 72ECF46A56B4AD39C907BBB71646B01B86E50310
-        url: https://dl.yarnpkg.com/debian/pubkey.gpg
-        state: present
-
-    - name: Add yarn repository
-      apt_repository:
-        repo: deb https://dl.yarnpkg.com/debian/ stable main
-        state: present
-
     - name: Install required build packages
       apt:
         name: ["libxml2-dev", "libxslt-dev", "libldap2-dev", "libsasl2-dev"]
@@ -66,6 +55,29 @@
       become: true
       become_user: postgres
 
+    - name: Install nvm
+      shell: "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.2/install.sh | bash"
+      args:
+        creates: "{{ home_path }}/.nvm"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Create bash profile
+      template:
+        src: profile.template.j2
+        dest: "{{ home_path }}/.profile"
+        mode: "0644"
+        owner: "{{ username }}"
+
+    - name: Install latest v18 nodel
+      shell: >
+        /bin/bash -c "source ~/.nvm/nvm.sh && nvm install 18.18.2 && nvm alias default 18.18.2"
+      args:
+        chdir: "{{ home_path }}"
+        creates: "{{ home_path }}/.nvm/alias"
+      become: true
+      become_user: "{{ username }}"
+
     - name: Git checkout repository
       git:
         repo: "https://github.com/ephes/mealie"
@@ -75,20 +87,22 @@
       become_user: "{{ username }}"
 
     - name: Install mealie frontend vue app dependencies
-      shell: yarn install
+      shell: >
+        /bin/bash -c "source ~/.nvm/nvm.sh && yarn install"
       args:
         chdir: "{{ site_path }}/frontend"
       become: true
       become_user: "{{ username }}"
 
     - name: Build mealie frontend vue app
-      shell: yarn build
+      shell: >
+        /bin/bash -c "source ~/.nvm/nvm.sh && yarn build"
       args:
         chdir: "{{ site_path }}/frontend"
       become: true
       become_user: "{{ username }}"
-      environment:
-        NODE_OPTIONS: "--openssl-legacy-provider"
+#      environment:
+#        NODE_OPTIONS: "--openssl-legacy-provider"
 
     - name: Create .env file
       template:
@@ -104,17 +118,19 @@
         state: directory
         owner: "{{ username }}"
 
-    - name: Install poetry
-      shell: curl -sSL https://install.python-poetry.org | python3.11 -
-      become: true
-      become_user: "{{ username }}"
+#    - name: Install pcurl -sSL https://install.python-poetry.org | python3 - --uninstalloetry
+#      shell: curl -sSL https://install.python-poetry.org | python3.11 -
+#      become: true
+#      become_user: "{{ username }}"
 
-    - name: Install poetry dependencies
-      shell: "{{ home_path }}/.poetry/bin/poetry install -E pgsql"
-      args:
-        chdir: "{{ site_path }}"
-      become: true
-      become_user: "{{ username }}"
+#    - name: Install poetry dependencies
+#      # shell: "{{ home_path }}/.poetry/bin/poetry install -E pgsql"
+#      shell: >
+#        /bin/bash -c "poetry install -E pgsql"
+#      args:
+#        chdir: "{{ site_path }}"
+#      become: true
+#      become_user: "{{ username }}"
 
     - name: Find path to poetry venv interpreter
       shell: "find {{ home_path }}/.cache/pypoetry/virtualenvs -name python | grep bin"
